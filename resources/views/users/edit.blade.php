@@ -1,0 +1,1 @@
+@include('users.form', ['title' => 'Edit User', 'action' => route('users.update', $user), 'method' => 'PUT', 'user' => $user])

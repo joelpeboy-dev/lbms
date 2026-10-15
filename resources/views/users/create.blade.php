@@ -1,0 +1,1 @@
+@include('users.form', ['title' => 'Add User', 'action' => route('users.store'), 'method' => 'POST', 'user' => null])

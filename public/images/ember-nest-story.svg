@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title description">
+  <title id="title">The Ember Nest: four animated story moments</title>
+  <desc id="description">Mara finds a warm glowing stone, helps dragon Orin escape a cave, protects the egg during a mountain storm, and meets the newly hatched dragon.</desc>
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1">
+      <stop stop-color="#101b3c"/>
+      <stop offset="1" stop-color="#39224a"/>
+    </linearGradient>
+    <linearGradient id="cave" x2="0" y2="1">
+      <stop stop-color="#253453"/>
+      <stop offset="1" stop-color="#11182e"/>
+    </linearGradient>
+    <radialGradient id="ember">
+      <stop stop-color="#fff8bd"/>
+      <stop offset=".35" stop-color="#ffbd57"/>
+      <stop offset="1" stop-color="#ff712d" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-150%" y="-150%" width="400%" height="400%">
+      <feGaussianBlur stdDeviation="9" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <style>
+    .scene { opacity: 0; }
+    .scene-one { animation: scene-one 24s infinite; }
+    .scene-two { animation: scene-two 24s infinite; }
+    .scene-three { animation: scene-three 24s infinite; }
+    .scene-four { animation: scene-four 24s infinite; }
+    .egg-light { transform-box: fill-box; transform-origin: center; animation: pulse 1.8s ease-in-out infinite; }
+    .embers { animation: float 5s ease-in-out infinite alternate; }
+    .snow { animation: drift 3.5s linear infinite; }
+    .dragon-wing { transform-box: fill-box; transform-origin: 90% 85%; animation: wing 3.4s ease-in-out infinite alternate; }
+    @keyframes scene-one { 0%, 2% { opacity: 0; } 5%, 21% { opacity: 1; } 24%, 100% { opacity: 0; } }
+    @keyframes scene-two { 0%, 25% { opacity: 0; } 29%, 46% { opacity: 1; } 49%, 100% { opacity: 0; } }
+    @keyframes scene-three { 0%, 50% { opacity: 0; } 54%, 71% { opacity: 1; } 74%, 100% { opacity: 0; } }
+    @keyframes scene-four { 0%, 75% { opacity: 0; } 79%, 96% { opacity: 1; } 99%, 100% { opacity: 0; } }
+    @keyframes pulse { 0%, 100% { transform: scale(.88); opacity: .75; } 50% { transform: scale(1.12); opacity: 1; } }
+    @keyframes float { from { transform: translateY(8px); } to { transform: translateY(-12px); } }
+    @keyframes drift { from { transform: translateX(-18px); } to { transform: translateX(18px); } }
+    @keyframes wing { from { transform: rotate(-3deg); } to { transform: rotate(4deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      .scene, .scene-one, .scene-two, .scene-three, .scene-four { animation: none; }
+      .scene-one { opacity: 1; }
+      .egg-light, .embers, .snow, .dragon-wing { animation: none; }
+    }
+  </style>
+
+  <rect width="960" height="540" fill="url(#sky)"/>
+  <circle cx="785" cy="92" r="36" fill="#fff0c9" opacity=".8"/>
+  <path d="m0 334 160-190 128 152 148-203 191 248 126-159 207 202v156H0z" fill="#172644"/>
+  <path d="m0 383 198-138 133 115 158-144 151 164 151-130 169 123v167H0z" fill="#101b32"/>
+  <g fill="#f2eaff" opacity=".8">
+    <circle cx="94" cy="84" r="2"/><circle cx="182" cy="128" r="2"/><circle cx="350" cy="68" r="2"/>
+    <circle cx="536" cy="116" r="2"/><circle cx="657" cy="56" r="2"/><circle cx="875" cy="176" r="2"/>
+  </g>
+  <rect y="442" width="960" height="98" fill="#10182b"/>
+
+  <g class="scene scene-one">
+    <path d="M0 396 118 308l74 61 98-115 122 142v46H0z" fill="#25354d"/>
+    <path d="M70 445V296l-43 56h28l-42 54h39l-34 39zM166 445V318l-38 48h25l-36 47h33l-28 32z" fill="#0b1728"/>
+    <path d="M488 432c-16-39-11-75 13-109l17 32 19-56 20 47c26 16 34 48 27 86z" fill="#d58a54"/>
+    <circle cx="519" cy="310" r="17" fill="#f1bd86"/>
+    <path d="M502 307q17-27 37 0" fill="#172033"/>
+    <path d="m512 327-18 50 33 33 30-55-23-24z" fill="#367ba2"/>
+    <path d="m504 372-29 53m59-50 25 48" stroke="#d58a54" stroke-width="9" stroke-linecap="round"/>
+    <ellipse class="egg-light" cx="655" cy="415" rx="52" ry="42" fill="url(#ember)" filter="url(#glow)"/>
+    <path d="m646 395q23-19 34 8l-8 31q-19 17-34-2z" fill="#ed8b45" stroke="#ffd485" stroke-width="3"/>
+    <g class="embers" fill="#ffcb75"><circle cx="621" cy="355" r="4"/><circle cx="686" cy="369" r="3"/><circle cx="716" cy="410" r="2"/></g>
+    <text x="40" y="56" fill="#ffdca2" font-family="Georgia,serif" font-size="25">1 · The warm stone</text>
+    <text x="40" y="88" fill="#dbe4ff" font-family="Arial,sans-serif" font-size="15">Mara finds a tiny light beneath the fallen pine.</text>
+  </g>
+
+  <g class="scene scene-two">
+    <path d="M175 448V294q34-173 190-173t191 173v154z" fill="url(#cave)" stroke="#53617d" stroke-width="9"/>
+    <path d="M188 449V306q29-163 177-163t177 163v143z" fill="#0a1122"/>
+    <path d="M425 420q-18-81 21-118 28-26 65-7l33 18 48-44-9 56-32 32 51 48-12 22H442z" fill="#58717c" stroke="#9bb4ad" stroke-width="4"/>
+    <path class="dragon-wing" d="m471 317-49-84 79 40 27-73 20 93" fill="#405768" stroke="#9bb4ad" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="574" cy="315" r="4" fill="#ffdc82"/>
+    <path d="m584 327 24 9-23 7" fill="#93aa9c"/>
+    <path d="M525 426q8-48 37-48 31 0 39 48z" fill="#db9b58" stroke="#ffdc9a" stroke-width="3"/>
+    <ellipse class="egg-light" cx="564" cy="403" rx="48" ry="38" fill="url(#ember)" filter="url(#glow)"/>
+    <path d="M294 434q-5-39 20-72l13 25 13-44 18 37q24 14 22 54z" fill="#367ba2"/>
+    <circle cx="325" cy="346" r="16" fill="#f1bd86"/>
+    <path d="M312 343q14-25 29 0" fill="#182139"/>
+    <path d="m284 425 74 8" stroke="#b9895d" stroke-width="10"/>
+    <g class="embers" fill="#ffcb75"><circle cx="462" cy="349" r="3"/><circle cx="621" cy="375" r="4"/><circle cx="399" cy="293" r="2"/></g>
+    <text x="40" y="56" fill="#ffdca2" font-family="Georgia,serif" font-size="25">2 · The hidden nest</text>
+    <text x="40" y="88" fill="#dbe4ff" font-family="Arial,sans-serif" font-size="15">Mara frees Orin, and the last egg glows in the cave.</text>
+  </g>
+
+  <g class="scene scene-three">
+    <path d="M0 375 145 260l96 95 140-177 133 194 107-128 144 135 81-91 114 104v148H0z" fill="#53627b"/>
+    <path d="m322 199 58-21 51 75-34-31-31 33zM663 236l53-35 36 39-34-13-25 27z" fill="#d9e5ed"/>
+    <path d="M286 455q194-180 389 0" fill="none" stroke="#986f53" stroke-width="17"/>
+    <path d="M305 438q176-145 351 0" fill="none" stroke="#d0a17a" stroke-width="5" stroke-dasharray="12 10"/>
+    <path d="M454 427q-12-40 13-72l15 23 13-39 17 32q23 14 18 56z" fill="#367ba2"/>
+    <circle cx="480" cy="341" r="15" fill="#f1bd86"/>
+    <path d="M468 338q13-23 26 0" fill="#182139"/>
+    <path d="m461 422-30 23m74-23 23 22" stroke="#d58a54" stroke-width="9" stroke-linecap="round"/>
+    <path d="M500 421q18-28 35 0" fill="none" stroke="#d7a16c" stroke-width="5"/>
+    <path d="M563 385q-20-54 10-72 24-13 49 6l41 8-20 18-31-5 16 36-12 23h-45z" fill="#58717c" stroke="#9bb4ad" stroke-width="4"/>
+    <path class="dragon-wing" d="m588 331-13-90 49 43 45-57-16 108" fill="#405768" stroke="#9bb4ad" stroke-width="5"/>
+    <ellipse class="egg-light" cx="509" cy="399" rx="42" ry="33" fill="url(#ember)" filter="url(#glow)"/>
+    <path d="M501 383q19-16 28 7l-7 24q-15 13-28-2z" fill="#ed8b45" stroke="#ffd485" stroke-width="3"/>
+    <g class="snow" fill="#e9f3ff"><circle cx="128" cy="202" r="3"/><circle cx="220" cy="144" r="2"/><circle cx="775" cy="187" r="3"/><circle cx="857" cy="265" r="2"/><circle cx="677" cy="116" r="2"/></g>
+    <text x="40" y="56" fill="#ffdca2" font-family="Georgia,serif" font-size="25">3 · The mountain wind</text>
+    <text x="40" y="88" fill="#dbe4ff" font-family="Arial,sans-serif" font-size="15">Mara and Orin shield the egg as the root bridge breaks.</text>
+  </g>
+
+  <g class="scene scene-four">
+    <path d="M0 384q176-145 363-9 186-143 343 3 122-92 254-30v192H0z" fill="#30415a"/>
+    <path d="M0 436q156-84 331 0 173-88 350 0 148-65 279-18v122H0z" fill="#263c48"/>
+    <circle cx="736" cy="200" r="64" fill="#ffc665" opacity=".12"/>
+    <path d="M388 430q-16-59 20-103 31-34 76-8l37 25 43-30-7 44-31 29 47 42-12 15H406z" fill="#58717c" stroke="#9bb4ad" stroke-width="4"/>
+    <path class="dragon-wing" d="m444 342-24-90 68 47 42-76 1 104" fill="#405768" stroke="#9bb4ad" stroke-width="5"/>
+    <circle cx="539" cy="329" r="4" fill="#ffdc82"/>
+    <path d="M292 440q-14-44 13-75l14 25 15-47 17 37q24 14 20 60z" fill="#367ba2"/>
+    <circle cx="320" cy="351" r="16" fill="#f1bd86"/>
+    <path d="M307 348q14-24 28 0" fill="#182139"/>
+    <path d="M531 420q0-35 31-42 33 7 32 42z" fill="#e89250" stroke="#ffd68b" stroke-width="4"/>
+    <path d="m542 384-8-23 22 14m26 7 13-22-4 29" fill="#e89250" stroke="#ffd68b" stroke-width="4"/>
+    <circle class="egg-light" cx="560" cy="399" r="52" fill="url(#ember)" filter="url(#glow)"/>
+    <path d="M560 402q-14-12-4-23 9 8 12 0 14 10 3 23" fill="#fff3b0"/>
+    <g class="embers" fill="#ffcb75"><circle cx="274" cy="303" r="3"/><circle cx="616" cy="326" r="4"/><circle cx="663" cy="389" r="3"/></g>
+    <text x="40" y="56" fill="#ffdca2" font-family="Georgia,serif" font-size="25">4 · A new beginning</text>
+    <text x="40" y="88" fill="#dbe4ff" font-family="Arial,sans-serif" font-size="15">In the sheltered valley, the egg opens and a home begins.</text>
+  </g>
+
+  <rect x="1" y="1" width="958" height="538" rx="18" fill="none" stroke="#8dbaff" stroke-opacity=".32" stroke-width="2"/>
+</svg>

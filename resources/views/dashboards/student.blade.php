@@ -1,0 +1,1 @@
+@include('dashboards.layout', ['role' => 'Student', 'message' => 'Welcome Student!', 'management' => false, 'reading' => true, 'study' => true, 'userCount' => $userCount, 'bookCount' => $bookCount, 'studyCount' => $studyCount, 'weather' => $weather, 'weatherCity' => $weatherCity, 'weatherCities' => $weatherCities, 'welcomeAnimation' => $welcomeAnimation ?? false])

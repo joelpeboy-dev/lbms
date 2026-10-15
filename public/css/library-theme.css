@@ -1,0 +1,259 @@
+:root {
+    color-scheme: dark;
+    --lbms-bg: #07111f;
+    --lbms-surface: #101d30;
+    --lbms-surface-raised: #16263d;
+    --lbms-border: #2a3e5a;
+    --lbms-text: #edf4ff;
+    --lbms-muted: #a6b6cb;
+    --lbms-primary: #3478f6;
+    --lbms-primary-hover: #2563d9;
+    --lbms-danger: #dc5262;
+    --lbms-success: #3fa978;
+    --lbms-shadow: 0 18px 45px rgb(0 0 0 / 22%);
+}
+
+html {
+    min-height: 100%;
+    background: var(--lbms-bg);
+}
+
+body {
+    background-color: var(--lbms-bg) !important;
+    background-image: radial-gradient(ellipse at 85% 0, rgb(52 120 246 / 14%), transparent 34%),
+        linear-gradient(145deg, #07111f, #0b1728 55%, #081321) !important;
+    color: var(--lbms-text) !important;
+    font-family: Inter, "Segoe UI", Arial, sans-serif !important;
+}
+
+body::before,
+body::after {
+    opacity: 0.18;
+}
+
+main,
+.panel,
+article,
+.lesson,
+.dashboard-panel,
+.login-panel,
+.response,
+.history section,
+.toolbar,
+.weather-search,
+.weather-summary,
+.weather-item,
+.forecast-card {
+    background-color: var(--lbms-surface) !important;
+    border-color: var(--lbms-border) !important;
+    color: var(--lbms-text) !important;
+    box-shadow: var(--lbms-shadow);
+}
+
+main {
+    border-radius: 18px !important;
+}
+
+.brand-panel,
+.sidebar {
+    background-color: #081426 !important;
+}
+
+.topbar {
+    background-color: rgb(7 17 31 / 92%) !important;
+    border-color: var(--lbms-border) !important;
+}
+
+.content,
+.workspace {
+    color: var(--lbms-text);
+}
+
+h1,
+h2,
+h3,
+h4,
+strong,
+th,
+.eyebrow,
+.author,
+.panel-title,
+.weather-location,
+.weather-temperature {
+    color: var(--lbms-text) !important;
+}
+
+p,
+label,
+small,
+figcaption,
+td,
+.intro,
+.muted,
+.weather-source,
+.weather-meta,
+.weather-fallback,
+.stat span,
+li {
+    color: var(--lbms-muted) !important;
+}
+
+a,
+button,
+input[type="submit"],
+input[type="button"] {
+    border-radius: 9px !important;
+}
+
+button,
+input[type="submit"],
+input[type="button"],
+.actions a,
+header a,
+article a,
+.lesson a {
+    background-color: var(--lbms-primary) !important;
+    color: #fff !important;
+    box-shadow: none;
+}
+
+button:hover,
+input[type="submit"]:hover,
+input[type="button"]:hover,
+.actions a:hover,
+header a:hover,
+article a:hover,
+.lesson a:hover {
+    background-color: var(--lbms-primary-hover) !important;
+}
+
+button.danger,
+button.out,
+.danger,
+.out {
+    background-color: var(--lbms-danger) !important;
+    color: #fff !important;
+}
+
+a:not(button):not(.nav a):not(.logout) {
+    color: #8dbaff !important;
+}
+
+.nav a,
+.nav a.active,
+.logout {
+    color: #aec3db;
+}
+
+.sidebar form.logout-form {
+    margin-top: 0 !important;
+    border-top: 0 !important;
+    border-bottom: 1px solid rgb(255 255 255 / 8%) !important;
+    padding: 8px 10px 14px !important;
+}
+
+.sidebar .logout {
+    justify-content: flex-start;
+    background: rgb(248 113 133 / 16%) !important;
+    color: #ffb5c0 !important;
+    box-shadow: none !important;
+}
+
+.sidebar .logout:hover {
+    background: rgb(248 113 133 / 28%) !important;
+    color: #ffd3da !important;
+}
+
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+    border: 1px solid var(--lbms-border) !important;
+    border-radius: 9px !important;
+    background-color: #0a1525 !important;
+    color: var(--lbms-text) !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: 3px solid rgb(52 120 246 / 30%) !important;
+    border-color: var(--lbms-primary) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: #8398b1;
+}
+
+table {
+    color: var(--lbms-text);
+}
+
+th,
+td {
+    border-color: var(--lbms-border) !important;
+}
+
+th {
+    background-color: var(--lbms-surface-raised) !important;
+}
+
+.success,
+.notice {
+    border-color: var(--lbms-success) !important;
+    background-color: rgb(63 169 120 / 14%) !important;
+    color: #a8edc9 !important;
+}
+
+.error {
+    border-color: var(--lbms-danger) !important;
+    background-color: rgb(220 82 98 / 14%) !important;
+    color: #ffc0c7 !important;
+}
+
+.overdue,
+.danger,
+.secondary {
+    color: #ffabb4 !important;
+}
+
+.returned {
+    color: #8ee0b5 !important;
+}
+
+.cover,
+.photo-placeholder {
+    background-color: var(--lbms-surface-raised) !important;
+}
+
+.weather-sticker {
+    background: var(--lbms-surface-raised) !important;
+    box-shadow: none !important;
+}
+
+.weather-summary {
+    background-image: linear-gradient(120deg, #132943, #17263a) !important;
+}
+
+.hint {
+    border-color: #d69b37 !important;
+    background-color: rgb(214 155 55 / 12%) !important;
+    color: #f0d49d !important;
+}
+
+@media (max-width: 760px) {
+    .stats {
+        grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)) !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
