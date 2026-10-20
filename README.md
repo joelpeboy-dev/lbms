@@ -61,14 +61,43 @@ Available authenticated endpoints:
 
 | Method | Endpoint | Access |
 | --- | --- | --- |
+| `POST` | `/api/auth/token` | Public; submit email and password to receive a bearer token (rate limited) |
 | `GET` | `/api/categories` | Any valid token |
 | `GET` | `/api/books` | Any valid token; supports `search` (title, author, genre, or barcode), `category`, and `genre` |
 | `GET` | `/api/books/{slug}` | Any valid token |
+| `POST` | `/api/books` | Staff/admin; creates a catalog record |
+| `PUT` | `/api/books/{slug}` | Staff/admin; updates required catalog fields |
+| `PATCH` | `/api/books/{slug}` | Staff/admin; updates supplied fields |
+| `DELETE` | `/api/books/{slug}` | Staff/admin; blocked when the title has loan or reservation history |
+| `GET` | `/api/students` | Staff/admin; lists student accounts |
+| `POST` | `/api/students` | Staff/admin; creates a student account |
+| `GET` | `/api/students/{id}` | Staff/admin; reads a student account |
+| `PUT` / `PATCH` | `/api/students/{id}` | Staff/admin; updates a student account |
+| `DELETE` | `/api/students/{id}` | Staff/admin; blocked when the student has loan or reservation history |
 | `GET` | `/api/loans` | Students see their own records; staff/admin see all |
 | `POST` | `/api/loans` | Students borrow for themselves; staff/admin issue to a student |
 | `POST` | `/api/loans/{id}/return` | Staff/admin |
 | `GET` | `/api/reports/loans` | Staff/admin |
 | `DELETE` | `/api/auth/token` | Revokes the current token |
+
+For local testing, the token URL is `http://127.0.0.1:8000/api/auth/token`. Send a `POST` request with a JSON body such as `{"email":"staff@example.com","password":"password"}`. Opening the URL in a browser address bar sends a `GET` request, which does not issue a token.
+
+Book create/update requests accept `category`, `title`, `author`, `description`, `content`, `total_copies`, and `condition_status`. Optional fields are `genre`, `cover_url`, `illustrations`, `source_label`, `source_url`, and `barcode`. The API generates each book's slug. In Postman or another HTTP client, include `Accept: application/json` and `Authorization: Bearer YOUR_TOKEN`. Creation returns `201`; updates return `200`; invalid data returns `422`; missing titles return `404`; and deleting a title with loan or reservation history returns `409`. Book responses include catalog metadata but do not expose full book content.
+
+The Students API uses the existing `users` table and only manages accounts whose role is `student`; it does not create a duplicate students table. Student records include `student_id`, `first_name`, `last_name`, `email`, `course`, and `year_level`. Existing accounts can have empty student details. A successful `POST /api/students` creates an account with a securely generated random password that is never returned; the student must use the existing password-reset flow or an administrator must set a password before sign-in. For example, send `POST /api/students` this JSON body:
+
+```json
+{
+  "student_id": "2026-0001",
+  "first_name": "Juan",
+  "last_name": "Dela Cruz",
+  "email": "juan.delacruz@example.com",
+  "course": "BS Information Technology",
+  "year_level": 2
+}
+```
+
+The Students API returns `201` on creation, `200` on successful reads and updates, `422` for invalid input, `404` for missing or non-student IDs, and `409` if deletion would remove a student with loan or reservation history.
 
 Book search accepts an exact barcode/ISBN as well as title, author, and genre terms. The barcode represents a title-level code. Condition status also applies to all copies recorded for a title; tracking different conditions on individual physical copies requires individual-copy inventory records.
 

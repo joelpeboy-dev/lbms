@@ -96,6 +96,78 @@ class ApiController extends Controller
         return response()->json(['data' => $this->bookData($book)]);
     }
 
+    public function storeBook(Request $request): JsonResponse
+    {
+        $data = $request->validate($this->bookValidationRules());
+        $data['slug'] = Str::slug($data['title']).'-'.Str::random(6);
+        $book = Book::create($data);
+        LibraryAuditLog::record('book.created', $book, [
+            'title' => $book->title,
+            'source' => 'api',
+        ], $request->user());
+
+        return response()->json(['data' => $this->bookData($book)], 201);
+    }
+
+    public function updateBook(Request $request, Book $book): JsonResponse
+    {
+        $data = $request->validate($this->bookValidationRules(
+            $book,
+            partial: $request->isMethod('PATCH'),
+        ));
+
+        $book = DB::transaction(function () use ($book, $data, $request): Book {
+            $book = Book::query()->lockForUpdate()->findOrFail($book->id);
+            $activeLoans = $book->loans()->whereNull('returned_at')->count();
+            $totalCopies = $data['total_copies'] ?? $book->total_copies;
+
+            if ($totalCopies < $activeLoans) {
+                throw ValidationException::withMessages([
+                    'total_copies' => "This title already has {$activeLoans} copies on loan.",
+                ]);
+            }
+
+            $book->update($data);
+            LibraryAuditLog::record('book.updated', $book, [
+                'changed_fields' => array_keys($book->getChanges()),
+                'source' => 'api',
+            ], $request->user());
+
+            return $book->loadCount([
+                'loans as active_loans_count' => fn (Builder $query) => $query->whereNull('returned_at'),
+            ]);
+        });
+
+        return response()->json(['data' => $this->bookData($book)]);
+    }
+
+    public function deleteBook(Request $request, Book $book): JsonResponse
+    {
+        $deleted = DB::transaction(function () use ($book, $request): bool {
+            $book = Book::query()->lockForUpdate()->findOrFail($book->id);
+
+            if ($book->loans()->exists() || $book->reservations()->exists()) {
+                return false;
+            }
+
+            LibraryAuditLog::record('book.deleted', $book, [
+                'title' => $book->title,
+                'source' => 'api',
+            ], $request->user());
+            $book->delete();
+
+            return true;
+        });
+
+        if (! $deleted) {
+            return response()->json([
+                'message' => 'A title with borrowing or reservation history cannot be deleted.',
+            ], 409);
+        }
+
+        return response()->json(['message' => 'Book deleted successfully.']);
+    }
+
     public function loans(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -186,6 +258,36 @@ class ApiController extends Controller
                 'overdue_loans' => BookLoan::query()->whereNull('returned_at')->where('due_at', '<', now())->count(),
             ],
         ]);
+    }
+
+    private function bookValidationRules(?Book $book = null, bool $partial = false): array
+    {
+        $required = $partial ? 'sometimes' : 'required';
+        $optional = $partial ? ['sometimes', 'nullable'] : ['nullable'];
+        $barcodeRule = Rule::unique('books', 'barcode');
+
+        if ($book !== null) {
+            $barcodeRule->ignore($book->id);
+        }
+
+        return [
+            'category' => [$required, Rule::in(['book', 'study', 'manga'])],
+            'genre' => [...$optional, Rule::in(array_keys(config('library.genres')))],
+            'title' => [$required, 'string', 'max:255'],
+            'author' => [$required, 'string', 'max:255'],
+            'description' => [$required, 'string'],
+            'cover_url' => [...$optional, 'url', 'max:2048'],
+            'illustrations' => [...$optional, 'array'],
+            'illustrations.*' => ['array:url,caption'],
+            'illustrations.*.url' => ['required', 'url', 'max:2048'],
+            'illustrations.*.caption' => ['nullable', 'string', 'max:255'],
+            'content' => [$required, 'string'],
+            'source_label' => [...$optional, 'string', 'max:255'],
+            'source_url' => [...$optional, 'url', 'max:2048'],
+            'total_copies' => [$required, 'integer', 'min:1', 'max:100000'],
+            'barcode' => [...$optional, 'string', 'max:64', $barcodeRule],
+            'condition_status' => [$required, Rule::in(['available', 'maintenance', 'damaged', 'lost'])],
+        ];
     }
 
     private function bookData(Book $book): array
