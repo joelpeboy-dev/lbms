@@ -34,7 +34,7 @@
             <h1>{{ $book->title }}</h1>
             <div class="author">{{ $book->author }}</div>
             @if ($book->genre)
-                <div class="author">{{ config('library.genres.' . $book->genre, $book->genre) }}</div>
+                <div class="author">{{ $genres[$book->genre] ?? $book->genre }}</div>
             @endif
         </div>
     </div>

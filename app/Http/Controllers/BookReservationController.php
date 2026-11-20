@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Book;
 use App\Models\BookLoan;
 use App\Models\BookReservation;
+use App\Models\BookTransaction;
 use App\Models\LibraryAuditLog;
 use App\Notifications\LibraryMessage;
 use Carbon\Carbon;
@@ -24,7 +25,7 @@ class BookReservationController extends Controller
             'reservations' => BookReservation::query()
                 ->with([
                     'book' => fn ($query) => $query->withCount([
-                        'loans as active_loans_count' => fn ($loans) => $loans->whereNull('returned_at'),
+                        'loans as active_loans_count' => fn ($loans) => $loans->whereNull('returned_at')->whereNull('voided_at'),
                     ]),
                     'student',
                     'fulfiller',
@@ -62,7 +63,7 @@ class BookReservationController extends Controller
                 ]);
             }
 
-            if ($request->user()->bookLoans()->where('book_id', $book->id)->whereNull('returned_at')->exists()) {
+            if ($request->user()->bookLoans()->where('book_id', $book->id)->whereNull('returned_at')->whereNull('voided_at')->exists()) {
                 throw ValidationException::withMessages([
                     'reservation' => 'You already have an active loan for this book.',
                 ]);
@@ -94,11 +95,14 @@ class BookReservationController extends Controller
 
     public function mine(Request $request): View
     {
-        abort_unless($request->user()->role === 'student', 403);
+        abort_unless($request->user()->role === 'student' || $request->user()->isAdmin(), 403);
+
+        $reservationsQuery = $request->user()->isAdmin()
+            ? BookReservation::query()->with(['book', 'fulfiller', 'loan'])
+            : $request->user()->bookReservations()->with(['book', 'fulfiller', 'loan']);
 
         return view('reservations.mine', [
-            'reservations' => $request->user()->bookReservations()
-                ->with(['book', 'fulfiller', 'loan'])
+            'reservations' => $reservationsQuery
                 ->latest('requested_at')
                 ->paginate(20),
         ]);
@@ -106,10 +110,12 @@ class BookReservationController extends Controller
 
     public function cancel(Request $request, BookReservation $reservation): RedirectResponse
     {
-        abort_unless($request->user()->role === 'student', 403);
+        abort_unless($request->user()->role === 'student' || $request->user()->isAdmin(), 403);
 
         DB::transaction(function () use ($request, $reservation): void {
-            $reservation = $request->user()->bookReservations()
+            $reservation = ($request->user()->isAdmin()
+                ? BookReservation::query()
+                : $request->user()->bookReservations())
                 ->lockForUpdate()
                 ->findOrFail($reservation->id);
 
@@ -167,6 +173,7 @@ class BookReservationController extends Controller
                 ->where('borrower_id', $reservation->student_id)
                 ->where('book_id', $book->id)
                 ->whereNull('returned_at')
+                ->whereNull('voided_at')
                 ->exists()) {
                 throw ValidationException::withMessages([
                     'reservation' => 'This student already has an active loan for this book.',
@@ -179,6 +186,15 @@ class BookReservationController extends Controller
                 'issued_by' => $request->user()->id,
                 'borrowed_at' => now(),
                 'due_at' => Carbon::parse($data['due_at'])->endOfDay(),
+            ]);
+            BookTransaction::create([
+                'book_loan_id' => $loan->id,
+                'book_id' => $book->id,
+                'borrower_id' => $reservation->student_id,
+                'performed_by' => $request->user()->id,
+                'transaction_type' => 'borrowed',
+                'transaction_at' => $loan->borrowed_at,
+                'details' => ['source' => 'reservation'],
             ]);
 
             $reservation->update([

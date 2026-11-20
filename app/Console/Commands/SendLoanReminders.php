@@ -17,6 +17,7 @@ class SendLoanReminders extends Command
         BookLoan::query()
             ->with(['book', 'borrower'])
             ->whereNull('returned_at')
+            ->whereNull('voided_at')
             ->whereNull('due_reminded_at')
             ->whereBetween('due_at', [now(), now()->addDay()])
             ->chunkById(100, function ($loans): void {
@@ -34,6 +35,7 @@ class SendLoanReminders extends Command
         BookLoan::query()
             ->with(['book', 'borrower'])
             ->whereNull('returned_at')
+            ->whereNull('voided_at')
             ->whereNull('overdue_reminded_at')
             ->where('due_at', '<', now())
             ->chunkById(100, function ($loans): void {

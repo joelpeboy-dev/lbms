@@ -6,6 +6,7 @@ use App\Models\Book;
 use App\Models\BookReservation;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Tests\TestCase;
 
 class ApiTest extends TestCase
@@ -15,25 +16,76 @@ class ApiTest extends TestCase
     public function test_api_tokens_are_hashed_and_can_be_revoked(): void
     {
         $user = User::factory()->create(['role' => 'student', 'password' => 'password']);
-        $response = $this->postJson('/api/auth/token', [
+        $response = $this->postJson('/api/login', [
             'email' => $user->email,
             'password' => 'password',
         ]);
 
-        $response->assertCreated()->assertJsonPath('token_type', 'Bearer');
+        $response->assertOk()->assertJsonPath('token_type', 'Bearer');
         $plainTextToken = $response->json('token');
         $this->assertNotEmpty($plainTextToken);
-        $this->assertDatabaseHas('api_tokens', [
-            'user_id' => $user->id,
-            'token_hash' => hash('sha256', $plainTextToken),
+        [$tokenId, $tokenSecret] = explode('|', $plainTextToken, 2);
+        $this->assertDatabaseHas('personal_access_tokens', [
+            'id' => $tokenId,
+            'tokenable_id' => $user->id,
+            'token' => hash('sha256', $tokenSecret),
         ]);
-        $this->assertDatabaseMissing('api_tokens', ['token_hash' => $plainTextToken]);
 
         $this->withToken($plainTextToken)->getJson('/api/books')->assertOk();
-        $this->withToken($plainTextToken)->deleteJson('/api/auth/token')
+        $this->withToken($plainTextToken)->postJson('/api/logout')
             ->assertOk()
             ->assertJsonPath('message', 'The API token has been revoked.');
+        Auth::forgetGuards();
         $this->withToken($plainTextToken)->getJson('/api/books')->assertUnauthorized();
+    }
+
+    public function test_registration_creates_a_student_and_returns_a_sanctum_token(): void
+    {
+        $response = $this->postJson('/api/register', [
+            'name' => 'New Student',
+            'email' => 'new.student@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'role' => 'admin',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('token_type', 'Bearer')
+            ->assertJsonPath('user.role', 'student')
+            ->assertJsonPath('user.is_admin', false);
+        $this->assertDatabaseHas('users', [
+            'email' => 'new.student@example.com',
+            'role' => 'student',
+            'is_admin' => false,
+        ]);
+        $this->assertDatabaseHas('personal_access_tokens', [
+            'tokenable_id' => $response->json('user.id'),
+        ]);
+
+        $this->withToken($response->json('token'))->getJson('/api/user')
+            ->assertOk()
+            ->assertJsonPath('data.email', 'new.student@example.com')
+            ->assertJsonMissingPath('data.password');
+    }
+
+    public function test_api_login_returns_401_for_invalid_credentials_and_422_for_invalid_input(): void
+    {
+        $this->postJson('/api/login', [
+            'email' => 'missing@example.com',
+            'password' => 'incorrect',
+        ])->assertUnauthorized()
+            ->assertJsonPath('message', 'The supplied credentials are invalid.');
+
+        $this->postJson('/api/login', ['email' => 'not-an-email'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email', 'password']);
+    }
+
+    public function test_unauthenticated_api_requests_without_an_accept_header_return_json_401(): void
+    {
+        $this->get('/api/books')
+            ->assertUnauthorized()
+            ->assertJsonPath('message', 'Unauthenticated.');
     }
 
     public function test_students_can_create_loans_for_themselves_but_cannot_access_staff_reports(): void
@@ -91,6 +143,132 @@ class ApiTest extends TestCase
         $this->withToken($token)->getJson('/api/reports/loans')
             ->assertOk()
             ->assertJsonPath('data.active_loans', 0);
+        $this->assertDatabaseHas('book_transactions', [
+            'book_loan_id' => $loanId,
+            'transaction_type' => 'returned',
+        ]);
+        $this->assertDatabaseCount('book_transactions', 1);
+        $this->assertDatabaseMissing('book_transactions', [
+            'book_loan_id' => $loanId,
+            'transaction_type' => 'borrowed',
+        ]);
+    }
+
+    public function test_internal_api_can_issue_return_and_list_borrowing_transactions(): void
+    {
+        $staff = User::factory()->create(['role' => 'staff']);
+        $student = User::factory()->create(['role' => 'student']);
+        $book = Book::create([
+            'slug' => 'internal-transaction-book',
+            'category' => 'book',
+            'title' => 'Internal Transaction Book',
+            'author' => 'Author',
+            'description' => 'Description.',
+            'content' => 'Content.',
+        ]);
+        $token = $this->tokenFor($staff);
+
+        $this->getJson('/api/internal/transactions')->assertUnauthorized();
+
+        $borrow = $this->withToken($token)->postJson('/api/internal/transactions', [
+            'book_id' => $book->id,
+            'borrower_id' => $student->id,
+            'due_at' => now()->addDays(14)->toDateString(),
+        ])->assertCreated();
+        $transactionId = $borrow->json('data.id');
+        $loanId = $borrow->json('data.loan_id');
+
+        $this->withToken($token)->getJson('/api/internal/transactions')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.type', 'borrowed')
+            ->assertJsonPath('data.0.loan_id', $loanId)
+            ->assertJsonPath('data.0.id', $transactionId);
+
+        $this->withToken($token)->getJson("/api/internal/transactions?id={$transactionId}")
+            ->assertOk()
+            ->assertJsonPath('data.type', 'borrowed');
+
+        $this->withToken($token)->patchJson('/api/internal/transactions', [
+            'id' => $transactionId,
+        ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Book return recorded.')
+            ->assertJsonPath('data.type', 'returned')
+            ->assertJsonPath('data.id', $transactionId);
+
+        $this->withToken($token)->getJson('/api/internal/transactions')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.type', 'returned')
+            ->assertJsonPath('data.0.id', $transactionId);
+        $this->assertDatabaseCount('book_transactions', 1);
+    }
+
+    public function test_internal_delete_voids_active_borrow_and_removes_its_status_record(): void
+    {
+        $staff = User::factory()->create(['role' => 'staff']);
+        $student = User::factory()->create(['role' => 'student']);
+        $book = Book::create([
+            'slug' => 'internal-void-book',
+            'category' => 'book',
+            'title' => 'Internal Void Book',
+            'author' => 'Author',
+            'description' => 'Description.',
+            'content' => 'Content.',
+        ]);
+        $token = $this->tokenFor($staff);
+
+        $borrow = $this->withToken($token)->postJson('/api/internal/transactions', [
+            'book_id' => $book->id,
+            'borrower_id' => $student->id,
+            'due_at' => now()->addDays(14)->toDateString(),
+        ])->assertCreated();
+        $transactionId = $borrow->json('data.id');
+        $loanId = $borrow->json('data.loan_id');
+
+        $this->withToken($token)->deleteJson('/api/internal/transactions', [
+            'id' => $transactionId,
+        ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Borrowing transaction voided and removed.');
+
+        $this->assertDatabaseHas('book_loans', [
+            'id' => $loanId,
+            'voided_by' => $staff->id,
+        ]);
+        $this->assertDatabaseMissing('book_transactions', ['id' => $transactionId]);
+        $this->assertDatabaseCount('book_transactions', 0);
+        $this->withToken($token)->getJson('/api/internal/transactions')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+        $this->withToken($token)->deleteJson('/api/internal/transactions', [
+            'id' => $transactionId,
+        ])
+            ->assertNotFound();
+    }
+
+    public function test_internal_return_and_delete_require_an_id_on_the_shared_endpoint(): void
+    {
+        $staff = User::factory()->create(['role' => 'staff']);
+        $token = $this->tokenFor($staff);
+
+        $this->withToken($token)->patchJson('/api/internal/transactions')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('id');
+        $this->withToken($token)->deleteJson('/api/internal/transactions')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('id');
+    }
+
+    public function test_internal_borrowing_api_requires_a_staff_or_admin_user(): void
+    {
+        $student = User::factory()->create(['role' => 'student']);
+        $token = $this->tokenFor($student);
+
+        $this->withToken($token)
+            ->getJson('/api/internal/transactions')
+            ->assertForbidden();
     }
 
     public function test_api_barcode_search_reports_condition_aware_availability_and_blocks_unavailable_loans(): void
@@ -267,6 +445,79 @@ class ApiTest extends TestCase
         $this->assertDatabaseHas('books', ['id' => $book->id, 'title' => 'Student API Book']);
     }
 
+    public function test_internal_user_endpoint_requires_a_valid_sanctum_token(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'internal.admin@example.com',
+            'role' => 'admin',
+            'is_admin' => true,
+            'password' => 'password',
+        ]);
+
+        $token = $this->tokenFor($user);
+
+        $this->getJson('/api/internal/users')->assertUnauthorized();
+        $this->withHeader('X-API-KEY', 'internal-secret-key')->getJson('/api/internal/users')
+            ->assertUnauthorized();
+
+        $this->withToken($token)->getJson('/api/internal/users')
+            ->assertOk()
+            ->assertJsonPath('data.0.email', $user->email);
+    }
+
+    public function test_internal_user_endpoint_rejects_an_invalid_bearer_token(): void
+    {
+        $this->withToken('invalid-token')->getJson('/api/internal/users')->assertUnauthorized();
+    }
+
+    public function test_admin_users_bypass_student_loan_scope_and_view_all_loans(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_admin' => true, 'password' => 'password']);
+        $firstStudent = User::factory()->create(['role' => 'student']);
+        $secondStudent = User::factory()->create(['role' => 'student']);
+        $firstBook = Book::create([
+            'slug' => 'admin-loan-book-one',
+            'category' => 'book',
+            'title' => 'Admin Loan Book One',
+            'author' => 'Author',
+            'description' => 'Description.',
+            'content' => 'Content.',
+        ]);
+        $secondBook = Book::create([
+            'slug' => 'admin-loan-book-two',
+            'category' => 'book',
+            'title' => 'Admin Loan Book Two',
+            'author' => 'Author',
+            'description' => 'Description.',
+            'content' => 'Content.',
+        ]);
+
+        $adminToken = $this->tokenFor($admin);
+        $this->withToken($adminToken)->postJson('/api/loans', [
+            'book_id' => $firstBook->id,
+            'borrower_id' => $firstStudent->id,
+            'due_at' => now()->addDays(14)->toDateString(),
+        ])->assertCreated();
+        $this->withToken($adminToken)->postJson('/api/loans', [
+            'book_id' => $secondBook->id,
+            'borrower_id' => $secondStudent->id,
+            'due_at' => now()->addDays(14)->toDateString(),
+        ])->assertCreated();
+
+        $this->withToken($adminToken)->getJson('/api/loans')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+        $this->withToken($adminToken)->getJson('/api/transactions')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+
+        $studentToken = $this->tokenFor($firstStudent);
+        $this->withToken($studentToken)->getJson('/api/transactions')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.borrower.id', $firstStudent->id);
+    }
+
     public function test_book_api_returns_422_for_missing_required_create_fields(): void
     {
         $staff = User::factory()->create(['role' => 'staff', 'password' => 'password']);
@@ -387,11 +638,133 @@ class ApiTest extends TestCase
         $this->assertModelExists($reservedBook);
     }
 
+    public function test_staff_can_complete_reservation_crud_through_the_api(): void
+    {
+        $staff = User::factory()->create(['role' => 'staff', 'password' => 'password']);
+        $student = User::factory()->create(['role' => 'student']);
+        $book = Book::create([
+            'slug' => 'reservation-crud-book',
+            'category' => 'book',
+            'title' => 'Reservation CRUD Book',
+            'author' => 'Author',
+            'description' => 'Description.',
+            'content' => 'Content.',
+        ]);
+        $token = $this->tokenFor($staff);
+
+        $created = $this->withToken($token)->postJson('/api/reservations', [
+            'book_id' => $book->id,
+            'student_id' => $student->id,
+            'status' => 'pending',
+        ])->assertCreated();
+        $reservationId = $created->json('data.id');
+
+        $this->withToken($token)->getJson("/api/reservations/{$reservationId}")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'pending');
+        $this->withToken($token)->patchJson("/api/reservations/{$reservationId}", [
+            'status' => 'fulfilled',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'fulfilled');
+        $this->assertDatabaseHas('book_reservations', [
+            'id' => $reservationId,
+            'status' => 'fulfilled',
+        ]);
+
+        $this->withToken($token)->deleteJson("/api/reservations/{$reservationId}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Reservation deleted successfully.');
+        $this->assertDatabaseMissing('book_reservations', ['id' => $reservationId]);
+        $this->withToken($token)->getJson("/api/reservations/{$reservationId}")
+            ->assertNotFound();
+    }
+
+    public function test_staff_can_complete_attendance_crud_through_the_api(): void
+    {
+        $staff = User::factory()->create(['role' => 'staff', 'password' => 'password']);
+        $student = User::factory()->create(['role' => 'student']);
+        $token = $this->tokenFor($staff);
+
+        $created = $this->withToken($token)->postJson('/api/attendances', [
+            'user_id' => $student->id,
+            'time_in' => now()->subHour()->toIso8601String(),
+        ])->assertCreated();
+        $attendanceId = $created->json('data.id');
+
+        $this->withToken($token)->getJson("/api/attendances/{$attendanceId}")
+            ->assertOk()
+            ->assertJsonPath('data.user.id', $student->id);
+        $this->withToken($token)->patchJson("/api/attendances/{$attendanceId}", [
+            'time_out' => now()->toIso8601String(),
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.id', $attendanceId);
+        $this->assertDatabaseHas('attendances', [
+            'id' => $attendanceId,
+            'user_id' => $student->id,
+        ]);
+
+        $this->withToken($token)->deleteJson("/api/attendances/{$attendanceId}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Attendance record deleted successfully.');
+        $this->assertDatabaseMissing('attendances', ['id' => $attendanceId]);
+        $this->withToken($token)->getJson("/api/attendances/{$attendanceId}")
+            ->assertNotFound();
+    }
+
+    public function test_staff_can_update_and_delete_an_active_loan_through_the_api(): void
+    {
+        $staff = User::factory()->create(['role' => 'staff', 'password' => 'password']);
+        $firstStudent = User::factory()->create(['role' => 'student']);
+        $secondStudent = User::factory()->create(['role' => 'student']);
+        $book = Book::create([
+            'slug' => 'loan-crud-book',
+            'category' => 'book',
+            'title' => 'Loan CRUD Book',
+            'author' => 'Author',
+            'description' => 'Description.',
+            'content' => 'Content.',
+        ]);
+        $token = $this->tokenFor($staff);
+
+        $created = $this->withToken($token)->postJson('/api/loans', [
+            'book_id' => $book->id,
+            'borrower_id' => $firstStudent->id,
+            'due_at' => now()->addDays(14)->toDateString(),
+        ])->assertCreated();
+        $loanId = $created->json('data.id');
+
+        $this->withToken($token)->getJson("/api/loans/{$loanId}")
+            ->assertOk()
+            ->assertJsonPath('data.borrower.id', $firstStudent->id);
+        $this->withToken($token)->patchJson("/api/loans/{$loanId}", [
+            'borrower_id' => $secondStudent->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.borrower.id', $secondStudent->id);
+        $this->assertDatabaseHas('book_loans', [
+            'id' => $loanId,
+            'borrower_id' => $secondStudent->id,
+        ]);
+
+        $this->withToken($token)->deleteJson("/api/loans/{$loanId}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Loan deleted successfully.');
+        $this->assertDatabaseMissing('book_loans', ['id' => $loanId]);
+        $this->withToken($token)->getJson("/api/loans/{$loanId}")
+            ->assertNotFound();
+    }
+
     private function tokenFor(User $user): string
     {
-        return $this->postJson('/api/auth/token', [
+        $token = $this->postJson('/api/auth/token', [
             'email' => $user->email,
             'password' => 'password',
-        ])->assertCreated()->json('token');
+        ])->assertOk()->json('token');
+
+        Auth::forgetGuards();
+
+        return $token;
     }
 }

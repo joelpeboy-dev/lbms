@@ -43,7 +43,7 @@
         <form class="catalog-filter" method="GET" action="{{ route('reading.index') }}">
             <input name="search" value="{{ $filters['search'] ?? '' }}" maxlength="100" placeholder="Search by title, author, description, or scan a barcode" aria-label="Search the library by title, author, description, or barcode" autofocus>
             <select name="category" aria-label="Filter by section"><option value="">All sections</option>@foreach (['book' => 'Other books', 'study' => 'Study', 'manga' => 'Manga'] as $value => $label)<option value="{{ $value }}" @selected(($filters['category'] ?? '') === $value)>{{ $label }}</option>@endforeach</select>
-            <select name="genre" aria-label="Filter by genre"><option value="">All genres</option>@foreach (config('library.genres') as $value => $label)<option value="{{ $value }}" @selected(($filters['genre'] ?? '') === $value)>{{ $label }}</option>@endforeach</select>
+            <select name="genre" aria-label="Filter by genre"><option value="">All genres</option>@foreach ($genres as $value => $label)<option value="{{ $value }}" @selected(($filters['genre'] ?? '') === $value)>{{ $label }}</option>@endforeach</select>
             <button type="submit">Search</button>
         </form>
         <section>
@@ -53,7 +53,7 @@
                 <article>
                     @if ($book->cover_url)<img class="cover" src="{{ $book->cover_url }}" alt="Cover of {{ $book->title }}" loading="lazy">@else<div class="cover"></div>@endif
                     <div class="author">BOOK {{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }}</div>
-                    @if ($book->genre)<div class="genre">{{ config('library.genres.' . $book->genre, $book->genre) }}</div>@endif
+                    @if ($book->genre)<div class="genre">{{ $genres[$book->genre] ?? $book->genre }}</div>@endif
                     <h2>{{ $book->title }}</h2>
                     <p>By {{ $book->author }}</p>
                     <p>{{ $book->description }}</p>
@@ -74,7 +74,7 @@
                 <article>
                     @if ($book->cover_url)<img class="cover" src="{{ $book->cover_url }}" alt="Cover of {{ $book->title }}" loading="lazy">@else<div class="cover"></div>@endif
                     <div class="author">STUDY</div>
-                    @if ($book->genre)<div class="genre">{{ config('library.genres.' . $book->genre, $book->genre) }}</div>@endif
+                    @if ($book->genre)<div class="genre">{{ $genres[$book->genre] ?? $book->genre }}</div>@endif
                     <h2>{{ $book->title }}</h2>
                     <p>By {{ $book->author }}</p>
                     <p>{{ $book->description }}</p>
@@ -95,7 +95,7 @@
                 <article>
                     @if ($book->cover_url)<img class="cover" src="{{ $book->cover_url }}" alt="Cover of {{ $book->title }}" loading="lazy">@else<div class="cover"></div>@endif
                     <div class="author">MANGA {{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }}</div>
-                    @if ($book->genre)<div class="genre">{{ config('library.genres.' . $book->genre, $book->genre) }}</div>@endif
+                    @if ($book->genre)<div class="genre">{{ $genres[$book->genre] ?? $book->genre }}</div>@endif
                     <h2>{{ $book->title }}</h2>
                     <p>By {{ $book->author }}</p>
                     <p>{{ $book->description }}</p>

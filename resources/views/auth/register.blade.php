@@ -18,6 +18,8 @@
         input:focus { outline: 3px solid #3774ff55; border-color: var(--blue-bright); }
         button { width: 100%; margin-top: 26px; padding: 14px; border: 0; border-radius: 9px; background: var(--blue); color: white; font: 800 15px inherit; cursor: pointer; transition: transform .2s, background .2s, box-shadow .2s; }
         button:hover { transform: translateY(-3px); background: var(--blue-bright); box-shadow: 0 10px 20px #102a7226; }
+        .google-login { display: block; margin-top: 12px; padding: 13px 14px; border: 1px solid #3b4e7b; border-radius: 8px; color: var(--ink); text-align: center; text-decoration: none; }
+        .google-login:hover { border-color: var(--blue-bright); color: white; }
         .error { margin: 0 0 14px; padding: 11px 13px; border-left: 4px solid var(--red); border-radius: 6px; background: #fff0f2; color: #a22132; font-size: 14px; }
         a { color: var(--red); font-weight: 800; }
         @keyframes reveal { from { opacity: 0; transform: translateY(18px) scale(.98); } to { opacity: 1; transform: none; } }
@@ -52,6 +54,7 @@
 
             <button type="submit">Register</button>
         </form>
+        <a class="google-login" href="{{ route('google.redirect') }}">Login with Google</a>
         <p class="intro" style="margin: 22px 0 0; text-align: center;"><a href="{{ route('login') }}">Back to login</a></p>
     </main>
 </body>

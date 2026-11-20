@@ -25,20 +25,20 @@
     <main>
         <header>
             <div><div class="eyebrow">{{ ucfirst(auth()->user()->role) }} book management</div><h1>Library books</h1><p>Add stories and manga to the reading room.</p></div>
-            <div><a class="secondary" href="{{ route('books.create') }}">Add new book</a> <a href="{{ route('loans.index') }}">Manage borrowing</a> <a href="{{ url('/' . auth()->user()->role . '/dashboard') }}">Dashboard</a></div>
+            <div><a class="secondary" href="{{ route('books.create') }}">Add new book</a> <a href="{{ route('book-categories.index') }}">Manage categories</a> <a href="{{ route('loans.index') }}">Manage borrowing</a> <a href="{{ url('/' . auth()->user()->role . '/dashboard') }}">Dashboard</a></div>
         </header>
         @if (session('success')) <p class="notice">{{ session('success') }}</p> @endif
         @if ($errors->any()) <p class="error">{{ $errors->first() }}</p> @endif
         <form class="search" method="GET" action="{{ route('books.index') }}">
             <input name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Search titles, authors, genres, or scan a barcode" aria-label="Search titles, authors, genres, or barcode" autofocus>
             <select name="category" aria-label="Filter by section"><option value="">All sections</option>@foreach (['book' => 'Other books', 'study' => 'Study', 'manga' => 'Manga'] as $value => $label)<option value="{{ $value }}" @selected(($filters['category'] ?? '') === $value)>{{ $label }}</option>@endforeach</select>
-            <select name="genre" aria-label="Filter by genre"><option value="">All genres</option>@foreach (config('library.genres') as $value => $label)<option value="{{ $value }}" @selected(($filters['genre'] ?? '') === $value)>{{ $label }}</option>@endforeach</select>
+            <select name="genre" aria-label="Filter by genre"><option value="">All genres</option>@foreach ($genres as $value => $label)<option value="{{ $value }}" @selected(($filters['genre'] ?? '') === $value)>{{ $label }}</option>@endforeach</select>
             <button type="submit">Search</button>
         </form>
         <section class="grid">
             @forelse ($books as $book)
                 @php($available = $book->condition_status === 'available' ? max(0, $book->total_copies - $book->active_loans_count) : 0)
-                <article>@if ($book->cover_url)<img class="cover" src="{{ $book->cover_url }}" alt="Cover of {{ $book->title }}" loading="lazy">@else<div class="cover" aria-label="No cover available"></div>@endif<div class="author">{{ strtoupper($book->category) }}@if ($book->genre) · {{ config('library.genres.' . $book->genre, $book->genre) }}@endif</div><h2>{{ $book->title }}</h2><p>By {{ $book->author }}</p><p class="muted">{{ $available }} of {{ $book->total_copies }} copies available · {{ ucfirst($book->condition_status) }}@if ($book->barcode) · Barcode {{ $book->barcode }}@endif</p><div class="card-actions"><a href="{{ route('reading.show', $book->slug) }}">Read</a><a href="{{ route('books.edit', $book) }}">Edit</a><form method="POST" action="{{ route('books.destroy', $book) }}" onsubmit="return confirm('Delete this book?')">@csrf @method('DELETE')<button type="submit">Delete</button></form></div></article>
+                <article>@if ($book->cover_url)<img class="cover" src="{{ $book->cover_url }}" alt="Cover of {{ $book->title }}" loading="lazy">@else<div class="cover" aria-label="No cover available"></div>@endif<div class="author">{{ strtoupper($book->category) }}@if ($book->genre) · {{ $genres[$book->genre] ?? $book->genre }}@endif</div><h2>{{ $book->title }}</h2><p>By {{ $book->author }}</p><p class="muted">{{ $available }} of {{ $book->total_copies }} copies available · {{ ucfirst($book->condition_status) }}@if ($book->barcode) · Barcode {{ $book->barcode }}@endif</p><div class="card-actions"><a href="{{ route('reading.show', $book->slug) }}">Read</a><a href="{{ route('books.edit', $book) }}">Edit</a><form method="POST" action="{{ route('books.destroy', $book) }}" onsubmit="return confirm('Delete this book?')">@csrf @method('DELETE')<button type="submit">Delete</button></form></div></article>
             @empty
                 <p>No titles match your search.</p>
             @endforelse

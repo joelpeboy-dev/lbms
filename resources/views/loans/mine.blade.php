@@ -17,7 +17,7 @@
         <thead><tr><th>Title</th><th>Issued</th><th>Due date</th><th>Returned</th><th>Fine</th><th>Status</th></tr></thead>
         <tbody>
         @forelse ($loans as $loan)
-            @php($status = $loan->returned_at ? 'Returned' : ($loan->isOverdue() ? 'Overdue' : 'Borrowed'))
+            @php($status = $loan->voided_at ? 'Voided' : ($loan->returned_at ? 'Returned' : ($loan->isOverdue() ? 'Overdue' : 'Borrowed')))
             <tr>
                 <td>{{ $loan->book->title }}</td>
                 <td>{{ $loan->borrowed_at->format('M j, Y') }}</td>

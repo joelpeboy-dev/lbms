@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\Book;
+use App\Models\BookCategory;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use PDO;
 use Tests\TestCase;
 
 class DatabaseBackupTest extends TestCase
@@ -16,6 +18,7 @@ class DatabaseBackupTest extends TestCase
         $databasePath = tempnam(sys_get_temp_dir(), 'library-backup-test-');
         $this->assertNotFalse($databasePath);
         unlink($databasePath);
+        $legacyBackupPath = null;
 
         $originalBackups = Storage::disk('local')->files('library-backups');
         config([
@@ -32,9 +35,14 @@ class DatabaseBackupTest extends TestCase
                 ->assertExitCode(0);
 
             $admin = User::factory()->create(['role' => 'admin']);
+            $category = BookCategory::create([
+                'slug' => 'restorable-category',
+                'name' => 'Restorable Category',
+            ]);
             $originalBook = Book::create([
                 'slug' => 'original-database-title',
                 'category' => 'book',
+                'genre' => $category->slug,
                 'title' => 'Original Database Title',
                 'author' => 'Test Author',
                 'description' => 'Original database content.',
@@ -63,6 +71,19 @@ class DatabaseBackupTest extends TestCase
                 'total_copies' => 1,
             ]);
 
+            $legacyBackupPath = tempnam(sys_get_temp_dir(), 'library-legacy-backup-');
+            $this->assertNotFalse($legacyBackupPath);
+            $this->assertTrue(copy(Storage::disk('local')->path($backupPath), $legacyBackupPath));
+            $legacyDatabase = new PDO('sqlite:'.$legacyBackupPath);
+            $legacyDatabase->exec('DROP TABLE book_categories');
+            $legacyDatabase->exec("DELETE FROM migrations WHERE migration = '2026_10_20_015734_create_book_categories_table'");
+            unset($legacyDatabase);
+
+            $this->post(route('admin.backups.restore'), [
+                'backup' => new UploadedFile($legacyBackupPath, 'legacy-library.sqlite', 'application/vnd.sqlite3', null, true),
+            ])->assertUnprocessable();
+            $this->assertDatabaseHas('books', ['slug' => 'later-database-title']);
+
             $this->post(route('admin.backups.restore'), [
                 'backup' => new UploadedFile(
                     Storage::disk('local')->path($backupPath),
@@ -75,6 +96,10 @@ class DatabaseBackupTest extends TestCase
 
             $this->assertDatabaseHas('books', ['id' => $originalBook->id, 'title' => $originalBook->title]);
             $this->assertDatabaseMissing('books', ['slug' => 'later-database-title']);
+            $this->assertDatabaseHas('book_categories', [
+                'slug' => 'restorable-category',
+                'name' => 'Restorable Category',
+            ]);
             $this->assertSame(2, count(array_diff(
                 Storage::disk('local')->files('library-backups'),
                 $originalBackups,
@@ -95,6 +120,10 @@ class DatabaseBackupTest extends TestCase
                 if (is_file($path) && ! unlink($path)) {
                     throw new \RuntimeException('A temporary test database file could not be removed.');
                 }
+            }
+
+            if ($legacyBackupPath !== null && is_file($legacyBackupPath) && ! unlink($legacyBackupPath)) {
+                throw new \RuntimeException('The temporary legacy backup file could not be removed.');
             }
         }
     }

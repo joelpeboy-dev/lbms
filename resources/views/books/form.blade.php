@@ -22,7 +22,7 @@
             @csrf
             @isset($book) @method('PUT') @endisset
             <label>Section<select name="category" required><option value="book" @selected(old('category', $book->category ?? 'book') === 'book')>Other book</option><option value="study" @selected(old('category', $book->category ?? '') === 'study')>Study</option><option value="manga" @selected(old('category', $book->category ?? '') === 'manga')>Manga</option></select></label>
-            <label>Genre<select name="genre"><option value="">No specific genre</option>@foreach (config('library.genres') as $value => $label)<option value="{{ $value }}" @selected(old('genre', $book->genre ?? '') === $value)>{{ $label }}</option>@endforeach</select></label>
+            <label>Genre<select name="genre"><option value="">No specific genre</option>@foreach ($genres as $value => $label)<option value="{{ $value }}" @selected(old('genre', $book->genre ?? '') === $value)>{{ $label }}</option>@endforeach</select></label>
             <label>Title<input name="title" value="{{ old('title', $book->title ?? '') }}" required maxlength="255"></label>
             <label>Author<input name="author" value="{{ old('author', $book->author ?? '') }}" required maxlength="255"></label>
             <label>Description<textarea name="description" required>{{ old('description', $book->description ?? '') }}</textarea></label>

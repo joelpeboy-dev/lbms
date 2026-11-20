@@ -2,15 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Models\Book;
 use App\Models\Attendance;
-use App\Models\BookActivity;
+use App\Models\Book;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -51,6 +50,8 @@ class RoleAccessTest extends TestCase
             'password' => 'old-password',
             'role' => 'staff',
         ]);
+        $accessToken = $user->createToken('password-reset-test')->accessToken;
+        $this->assertModelExists($accessToken);
 
         $response = $this->post(route('password.email'), ['email' => $user->email]);
 
@@ -82,6 +83,7 @@ class RoleAccessTest extends TestCase
         $this->assertTrue(Hash::check('new-password-123', $user->password));
         $this->assertSame('staff', $user->role);
         $this->assertDatabaseMissing('password_reset_tokens', ['email' => $user->email]);
+        $this->assertModelMissing($accessToken);
 
         $this->post('/login', [
             'name' => $user->name,
@@ -348,7 +350,7 @@ class RoleAccessTest extends TestCase
         $create->assertRedirect('/users');
         $this->assertSame('staff', $created->role);
 
-        $update = $this->actingAs($admin)->put('/users/' . $created->id, [
+        $update = $this->actingAs($admin)->put('/users/'.$created->id, [
             'name' => 'Updated Student',
             'email' => 'updated.student@example.com',
             'password' => '',
@@ -362,7 +364,7 @@ class RoleAccessTest extends TestCase
             'email' => 'updated.student@example.com',
         ]);
 
-        $delete = $this->actingAs($admin)->delete('/users/' . $created->id);
+        $delete = $this->actingAs($admin)->delete('/users/'.$created->id);
 
         $delete->assertRedirect('/users');
         $this->assertDatabaseMissing('users', ['id' => $created->id]);
@@ -416,9 +418,9 @@ class RoleAccessTest extends TestCase
         $student = User::factory()->create(['role' => 'student']);
         $book = Book::create(['slug' => 'history-book', 'category' => 'book', 'title' => 'History Book', 'author' => 'Author', 'description' => 'Description', 'content' => 'Content']);
 
-        $this->actingAs($student)->get('/reading/' . $book->slug)->assertOk();
-        $this->actingAs($student)->post('/reading/' . $book->slug . '/favorite')->assertRedirect();
-        $this->actingAs($admin)->get('/users/' . $student->id . '/history')->assertOk()->assertSee('History Book');
+        $this->actingAs($student)->get('/reading/'.$book->slug)->assertOk();
+        $this->actingAs($student)->post('/reading/'.$book->slug.'/favorite')->assertRedirect();
+        $this->actingAs($admin)->get('/users/'.$student->id.'/history')->assertOk()->assertSee('History Book');
         $this->assertDatabaseHas('book_activities', ['user_id' => $student->id, 'book_id' => $book->id, 'type' => 'viewed']);
         $this->assertDatabaseHas('book_activities', ['user_id' => $student->id, 'book_id' => $book->id, 'type' => 'favorite']);
     }
@@ -478,6 +480,6 @@ class RoleAccessTest extends TestCase
             ->assertOk()
             ->assertSee('logout-exit')
             ->assertSee('logging-out')
-            ->assertSee("prefers-reduced-motion: reduce");
+            ->assertSee('prefers-reduced-motion: reduce');
     }
 }

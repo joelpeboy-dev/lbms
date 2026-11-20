@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Book;
 use App\Models\BookLoan;
+use App\Models\BookReservation;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -46,10 +47,20 @@ class BookLoanTest extends TestCase
         $this->post(route('loans.return', $loan))
             ->assertRedirect(route('loans.index'))
             ->assertSessionHas('success');
+        $this->assertDatabaseCount('book_transactions', 1);
+        $this->assertDatabaseHas('book_transactions', [
+            'book_loan_id' => $loan->id,
+            'transaction_type' => 'returned',
+        ]);
+        $this->assertDatabaseMissing('book_transactions', [
+            'book_loan_id' => $loan->id,
+            'transaction_type' => 'borrowed',
+        ]);
         $this->assertSame(1, $book->fresh()->availableCopies());
 
         $this->post('/loans', $issue)->assertSessionHas('success');
         $this->assertDatabaseCount('book_loans', 2);
+        $this->assertDatabaseCount('book_transactions', 2);
     }
 
     public function test_only_staff_and_admin_can_manage_loans_and_students_only_see_their_own_records(): void
@@ -107,6 +118,89 @@ class BookLoanTest extends TestCase
         $this->actingAs($staff)->delete(route('books.destroy', $book))
             ->assertSessionHasErrors('book');
         $this->assertDatabaseHas('books', ['id' => $book->id]);
+    }
+
+    public function test_books_with_reservation_history_cannot_be_deleted(): void
+    {
+        $staff = User::factory()->create(['role' => 'staff']);
+        $student = User::factory()->create(['role' => 'student']);
+        $book = Book::create([
+            'slug' => 'reserved-book',
+            'category' => 'book',
+            'title' => 'Reserved Book',
+            'author' => 'Author',
+            'description' => 'A description.',
+            'content' => 'Book content.',
+        ]);
+        BookReservation::create([
+            'book_id' => $book->id,
+            'student_id' => $student->id,
+            'status' => 'pending',
+            'requested_at' => now(),
+        ]);
+
+        $this->actingAs($staff)->delete(route('books.destroy', $book))
+            ->assertSessionHasErrors([
+                'book' => 'A title with borrowing or reservation history cannot be deleted.',
+            ]);
+
+        $this->assertModelExists($book);
+    }
+
+    public function test_staff_can_edit_a_book_without_reducing_copies_below_active_loans(): void
+    {
+        $staff = User::factory()->create(['role' => 'staff']);
+        $borrowers = User::factory()->count(2)->create(['role' => 'student']);
+        $book = Book::create([
+            'slug' => 'editable-book',
+            'category' => 'book',
+            'genre' => 'fantasy',
+            'title' => 'Editable Book',
+            'author' => 'Author',
+            'description' => 'A description.',
+            'content' => 'Book content.',
+            'total_copies' => 3,
+        ]);
+
+        foreach ($borrowers as $borrower) {
+            BookLoan::create([
+                'book_id' => $book->id,
+                'borrower_id' => $borrower->id,
+                'borrowed_at' => now(),
+                'due_at' => now()->addDays(14),
+            ]);
+        }
+
+        $payload = [
+            'category' => 'book',
+            'genre' => 'fantasy',
+            'title' => 'Updated Editable Book',
+            'author' => 'Updated Author',
+            'description' => 'Updated description.',
+            'content' => 'Updated content.',
+            'total_copies' => 1,
+            'condition_status' => 'available',
+        ];
+
+        $this->actingAs($staff)->put(route('books.update', $book), $payload)
+            ->assertSessionHasErrors('total_copies');
+        $this->assertDatabaseHas('books', [
+            'id' => $book->id,
+            'title' => 'Editable Book',
+            'total_copies' => 3,
+        ]);
+
+        $payload['title'] = 'Updated Editable Book';
+        $payload['total_copies'] = 2;
+
+        $this->put(route('books.update', $book), $payload)
+            ->assertRedirect(route('books.index'))
+            ->assertSessionHas('success');
+        $this->assertDatabaseHas('books', [
+            'id' => $book->id,
+            'title' => 'Updated Editable Book',
+            'total_copies' => 2,
+        ]);
     }
 
     public function test_students_can_search_the_catalog_and_view_copy_availability(): void

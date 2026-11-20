@@ -7,6 +7,7 @@ use App\Models\BookLoan;
 use App\Models\BookReservation;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Tests\TestCase;
 
 class StudentApiTest extends TestCase
@@ -112,6 +113,7 @@ class StudentApiTest extends TestCase
         $staffToken = $this->tokenFor($staff);
 
         $this->withToken($studentToken)->getJson('/api/students')->assertForbidden();
+        Auth::forgetGuards();
         $this->withToken($staffToken)->getJson("/api/students/{$staff->id}")->assertNotFound();
     }
 
@@ -208,9 +210,13 @@ class StudentApiTest extends TestCase
 
     private function tokenFor(User $user): string
     {
-        return $this->postJson('/api/auth/token', [
+        $token = $this->postJson('/api/auth/token', [
             'email' => $user->email,
             'password' => 'password',
-        ])->assertCreated()->json('token');
+        ])->assertOk()->json('token');
+
+        Auth::forgetGuards();
+
+        return $token;
     }
 }

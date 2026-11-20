@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\LibraryAuditLog;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -117,6 +116,7 @@ class StudentController extends Controller
                 'name' => $student->name,
                 'source' => 'api',
             ], $request->user());
+            $student->tokens()->delete();
             $student->delete();
 
             return true;

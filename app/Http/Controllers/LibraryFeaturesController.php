@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Book;
 use App\Models\BookActivity;
+use App\Models\BookCategory;
 use App\Models\BookLoan;
 use App\Models\LibraryAuditLog;
 use Illuminate\Http\RedirectResponse;
@@ -27,9 +28,9 @@ class LibraryFeaturesController extends Controller
                 'titles' => $books->count(),
                 'copies' => (int) $books->sum('total_copies'),
                 'available_copies' => max(0, (int) $books->sum(fn (Book $book): int => $book->condition_status === 'available' ? $book->total_copies : 0)
-                    - BookLoan::query()->whereNull('returned_at')->whereHas('book', fn ($query) => $query->where('condition_status', 'available'))->count()),
-                'active_loans' => BookLoan::query()->whereNull('returned_at')->count(),
-                'overdue_loans' => BookLoan::query()->whereNull('returned_at')->where('due_at', '<', now())->count(),
+                    - BookLoan::query()->whereNull('returned_at')->whereNull('voided_at')->whereHas('book', fn ($query) => $query->where('condition_status', 'available'))->count()),
+                'active_loans' => BookLoan::query()->whereNull('returned_at')->whereNull('voided_at')->count(),
+                'overdue_loans' => BookLoan::query()->whereNull('returned_at')->whereNull('voided_at')->where('due_at', '<', now())->count(),
                 'lost_titles' => $books->where('condition_status', 'lost')->count(),
             ],
             'popularBooks' => Book::query()
@@ -84,7 +85,7 @@ class LibraryFeaturesController extends Controller
                         $loan->borrowed_at->toDateTimeString(),
                         $loan->due_at->toDateTimeString(),
                         $loan->returned_at?->toDateTimeString(),
-                        $loan->returned_at ? 'returned' : ($loan->due_at->isPast() ? 'overdue' : 'borrowed'),
+                        $loan->voided_at ? 'voided' : ($loan->returned_at ? 'returned' : ($loan->due_at->isPast() ? 'overdue' : 'borrowed')),
                         number_format((float) $loan->fine_amount, 2, '.', ''),
                         $loan->fine_paid_at?->toDateTimeString(),
                     ]);
@@ -128,7 +129,12 @@ class LibraryFeaturesController extends Controller
             ->limit(8)
             ->get();
 
-        return view('student.history', compact('recent', 'favorites', 'recommendations'));
+        return view('student.history', [
+            'recent' => $recent,
+            'favorites' => $favorites,
+            'recommendations' => $recommendations,
+            'genres' => BookCategory::query()->pluck('name', 'slug')->all(),
+        ]);
     }
 
     public function auditLog(): View
@@ -273,7 +279,7 @@ class LibraryFeaturesController extends Controller
         abort_unless($integrity === 'ok', 422, 'The uploaded SQLite database failed its integrity check.');
 
         $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type = 'table'")->fetchAll(PDO::FETCH_COLUMN);
-        foreach (['migrations', 'users', 'books', 'book_loans', 'book_reservations', 'book_activities', 'library_audit_logs'] as $requiredTable) {
+        foreach (['migrations', 'users', 'books', 'book_loans', 'book_reservations', 'book_activities', 'library_audit_logs', 'book_categories'] as $requiredTable) {
             abort_unless(in_array($requiredTable, $tables, true), 422, 'The backup is missing required library tables.');
         }
 
@@ -282,13 +288,21 @@ class LibraryFeaturesController extends Controller
             422,
             'The backup is from a different schema version and cannot be restored here.',
         );
+        abort_unless(
+            $pdo->query("SELECT 1 FROM migrations WHERE migration = '2026_10_20_015734_create_book_categories_table'")->fetchColumn() !== false,
+            422,
+            'The backup is from a different schema version and cannot be restored here.',
+        );
         $bookColumns = $pdo->query("PRAGMA table_info('books')")->fetchAll(PDO::FETCH_COLUMN, 1);
         $loanColumns = $pdo->query("PRAGMA table_info('book_loans')")->fetchAll(PDO::FETCH_COLUMN, 1);
+        $categoryColumns = $pdo->query("PRAGMA table_info('book_categories')")->fetchAll(PDO::FETCH_COLUMN, 1);
         abort_unless(
             in_array('barcode', $bookColumns, true)
                 && in_array('condition_status', $bookColumns, true)
                 && in_array('due_reminded_at', $loanColumns, true)
-                && in_array('overdue_reminded_at', $loanColumns, true),
+                && in_array('overdue_reminded_at', $loanColumns, true)
+                && in_array('slug', $categoryColumns, true)
+                && in_array('name', $categoryColumns, true),
             422,
             'The backup does not have the current library schema.',
         );

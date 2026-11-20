@@ -6,8 +6,9 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['book_id', 'borrower_id', 'issued_by', 'returned_by', 'borrowed_at', 'due_at', 'returned_at', 'fine_amount', 'fine_paid_at', 'due_reminded_at', 'overdue_reminded_at'])]
+#[Fillable(['book_id', 'borrower_id', 'issued_by', 'returned_by', 'voided_by', 'borrowed_at', 'due_at', 'returned_at', 'voided_at', 'fine_amount', 'fine_paid_at', 'due_reminded_at', 'overdue_reminded_at'])]
 class BookLoan extends Model
 {
     protected function casts(): array
@@ -16,6 +17,7 @@ class BookLoan extends Model
             'borrowed_at' => 'datetime',
             'due_at' => 'datetime',
             'returned_at' => 'datetime',
+            'voided_at' => 'datetime',
             'fine_amount' => 'decimal:2',
             'fine_paid_at' => 'datetime',
             'due_reminded_at' => 'datetime',
@@ -43,14 +45,24 @@ class BookLoan extends Model
         return $this->belongsTo(User::class, 'returned_by');
     }
 
+    public function voider(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'voided_by');
+    }
+
+    public function transaction(): HasOne
+    {
+        return $this->hasOne(BookTransaction::class);
+    }
+
     public function isOverdue(): bool
     {
-        return $this->returned_at === null && $this->due_at->lessThan(now());
+        return $this->returned_at === null && $this->voided_at === null && $this->due_at->lessThan(now());
     }
 
     public function overdueDays(?CarbonInterface $reference = null): int
     {
-        $reference = $reference ?? ($this->returned_at ?? now());
+        $reference = $reference ?? ($this->returned_at ?? $this->voided_at ?? now());
 
         if ($this->due_at === null || $reference->lessThanOrEqualTo($this->due_at)) {
             return 0;

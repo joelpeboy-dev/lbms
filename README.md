@@ -55,13 +55,17 @@ The development seeder creates `admin@example.com`, `staff@example.com`, and `st
 
 ## JSON API
 
-Get a bearer token by posting a user's email and password to `POST /api/auth/token` with JSON fields `email`, `password`, and an optional token `name`. Tokens expire after 30 days; the plaintext token is returned only once and only its SHA-256 hash is stored. Send it as `Authorization: Bearer <token>`. Token issuance is rate limited. Password changes revoke that user's existing tokens.
+Laravel Sanctum protects the API with personal access tokens. Register at `POST /api/register` with `name`, `email`, `password`, and `password_confirmation`, or log in at `POST /api/login` with `email` and `password`. Both endpoints return a bearer token that expires after 30 days; only its SHA-256 hash is stored. Send it as `Authorization: Bearer <token>`. Login and registration are rate limited, and password changes revoke the user's existing tokens. The legacy `POST /api/auth/token` endpoint remains an alias for login.
 
 Available authenticated endpoints:
 
 | Method | Endpoint | Access |
 | --- | --- | --- |
-| `POST` | `/api/auth/token` | Public; submit email and password to receive a bearer token (rate limited) |
+| `POST` | `/api/register` | Public; creates a student account and returns a bearer token |
+| `POST` | `/api/login` | Public; submit email and password to receive a bearer token (rate limited) |
+| `POST` | `/api/logout` | Authenticated; revokes the current token |
+| `GET` | `/api/user` | Authenticated; returns the current user's profile |
+| `POST` / `DELETE` | `/api/auth/token` | Backward-compatible login and logout aliases |
 | `GET` | `/api/categories` | Any valid token |
 | `GET` | `/api/books` | Any valid token; supports `search` (title, author, genre, or barcode), `category`, and `genre` |
 | `GET` | `/api/books/{slug}` | Any valid token |
@@ -75,12 +79,23 @@ Available authenticated endpoints:
 | `PUT` / `PATCH` | `/api/students/{id}` | Staff/admin; updates a student account |
 | `DELETE` | `/api/students/{id}` | Staff/admin; blocked when the student has loan or reservation history |
 | `GET` | `/api/loans` | Students see their own records; staff/admin see all |
+| `GET` | `/api/transactions` | Current loan status records; students see their own, staff/admin see all |
 | `POST` | `/api/loans` | Students borrow for themselves; staff/admin issue to a student |
 | `POST` | `/api/loans/{id}/return` | Staff/admin |
 | `GET` | `/api/reports/loans` | Staff/admin |
-| `DELETE` | `/api/auth/token` | Revokes the current token |
 
-For local testing, the token URL is `http://127.0.0.1:8000/api/auth/token`. Send a `POST` request with a JSON body such as `{"email":"staff@example.com","password":"password"}`. Opening the URL in a browser address bar sends a `GET` request, which does not issue a token.
+`book_transactions` stores one current status row per loan, linked to `book_loans`. Returning a book updates that row; voiding a loan removes it. The loan record and audit log retain the loan and void history. The internal API uses the same URL for all four methods: `http://localhost:8000/api/internal/transactions`. Internal endpoints also require a Sanctum bearer token; transaction operations require a staff/admin account.
+
+| Method | Endpoint | Access |
+| --- | --- | --- |
+| `GET` | `/api/internal/transactions` | List current loan status records; add `?id={id}` to read one |
+| `POST` | `/api/internal/transactions` | Borrow/issue a book; send `book_id`, `borrower_id`, and `due_at` |
+| `PATCH` | `/api/internal/transactions` | Return a book; send the transaction `id` in the JSON body |
+| `DELETE` | `/api/internal/transactions` | Void an active loan; send the transaction `id` in the JSON body |
+
+`GET` with an `id` query returns a single record. `PATCH` and `DELETE` use a JSON body such as `{"id":1}`. `DELETE` releases the copy and removes the current status row; the loan and audit records remain available for history.
+
+For local testing, send `POST http://127.0.0.1:8000/api/login` a JSON body such as `{"email":"staff@example.com","password":"password"}`. Include `Accept: application/json` and `Authorization: Bearer <token>` when calling protected endpoints. Missing, invalid, and revoked tokens return JSON `401` responses; validation errors return `422`.
 
 Book create/update requests accept `category`, `title`, `author`, `description`, `content`, `total_copies`, and `condition_status`. Optional fields are `genre`, `cover_url`, `illustrations`, `source_label`, `source_url`, and `barcode`. The API generates each book's slug. In Postman or another HTTP client, include `Accept: application/json` and `Authorization: Bearer YOUR_TOKEN`. Creation returns `201`; updates return `200`; invalid data returns `422`; missing titles return `404`; and deleting a title with loan or reservation history returns `409`. Book responses include catalog metadata but do not expose full book content.
 

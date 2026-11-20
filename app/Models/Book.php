@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Book extends Model
@@ -37,9 +38,19 @@ class Book extends Model
         return $this->hasMany(BookLoan::class);
     }
 
+    public function genreCategory(): BelongsTo
+    {
+        return $this->belongsTo(BookCategory::class, 'genre', 'slug');
+    }
+
     public function reservations(): HasMany
     {
         return $this->hasMany(BookReservation::class);
+    }
+
+    public function activities(): HasMany
+    {
+        return $this->hasMany(BookActivity::class);
     }
 
     public function availableCopies(): int
@@ -48,6 +59,6 @@ class Book extends Model
             return 0;
         }
 
-        return max(0, $this->total_copies - $this->loans()->whereNull('returned_at')->count());
+        return max(0, $this->total_copies - $this->loans()->whereNull('returned_at')->whereNull('voided_at')->count());
     }
 }

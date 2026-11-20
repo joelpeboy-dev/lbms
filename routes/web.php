@@ -3,9 +3,11 @@
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\BookActivityController;
+use App\Http\Controllers\BookCategoryController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\BookLoanController;
 use App\Http\Controllers\BookReservationController;
+use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\LibraryFeaturesController;
 use App\Http\Controllers\LoginBrandingController;
 use App\Http\Controllers\StudentStudyHelperController;
@@ -15,6 +17,7 @@ use App\Http\Middleware\StaffOrAdmin;
 use App\Models\Attendance;
 use App\Models\Book;
 use App\Models\BookActivity;
+use App\Models\BookCategory;
 use App\Models\BookLoan;
 use App\Models\LoginPageSetting;
 use App\Models\User;
@@ -43,6 +46,9 @@ Route::get('/login', function () {
 })->name('login');
 
 Route::redirect('/log in', '/login');
+
+Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->name('google.redirect');
+Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
 
 Route::get('/forgot-password', function () {
     return view('auth.forgot-password');
@@ -75,6 +81,8 @@ Route::post('/reset-password', function () {
     $status = Password::reset(
         $data,
         function (User $user, string $password): void {
+            $user->tokens()->delete();
+            $user->apiTokens()->delete();
             $user->forceFill([
                 'password' => $password,
                 'remember_token' => Str::random(60),
@@ -235,7 +243,7 @@ Route::middleware('auth')->group(function () {
         $filters = request()->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'category' => ['nullable', 'in:book,study,manga'],
-            'genre' => ['nullable', Rule::in(array_keys(config('library.genres')))],
+            'genre' => ['nullable', Rule::exists('book_categories', 'slug')],
         ]);
         $search = $filters['search'] ?? null;
         $category = $filters['category'] ?? null;
@@ -262,6 +270,7 @@ Route::middleware('auth')->group(function () {
             'study' => $catalog('study'),
             'manga' => $catalog('manga'),
             'filters' => $filters,
+            'genres' => BookCategory::query()->orderBy('name')->pluck('name', 'slug')->all(),
         ]);
     })->name('reading.index');
 
@@ -274,7 +283,10 @@ Route::middleware('auth')->group(function () {
             ]);
         }
 
-        return view('student.book', ['book' => $book]);
+        return view('student.book', [
+            'book' => $book,
+            'genres' => BookCategory::query()->pluck('name', 'slug')->all(),
+        ]);
     })->name('reading.show');
 
     Route::get('/reading/{book:slug}/download', function (Book $book) {
@@ -295,6 +307,13 @@ Route::middleware('auth')->group(function () {
         Route::get('/{book}/edit', 'edit')->name('edit');
         Route::put('/{book}', 'update')->name('update');
         Route::delete('/{book}', 'destroy')->name('destroy');
+    });
+
+    Route::middleware(StaffOrAdmin::class)->prefix('book-categories')->name('book-categories.')->controller(BookCategoryController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::put('/{bookCategory:slug}', 'update')->name('update');
+        Route::delete('/{bookCategory:slug}', 'destroy')->name('destroy');
     });
 
     Route::middleware(StaffOrAdmin::class)->prefix('loans')->name('loans.')->controller(BookLoanController::class)->group(function () {

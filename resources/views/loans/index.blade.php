@@ -31,14 +31,14 @@
         <h2>Loan records</h2>
         <form class="toolbar" method="GET" action="{{ route('loans.index') }}">
             <input name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Search borrower or title" aria-label="Search borrower or title">
-            <select name="status" aria-label="Filter by status"><option value="">All statuses</option>@foreach (['borrowed' => 'Borrowed', 'overdue' => 'Overdue', 'returned' => 'Returned'] as $value => $label)<option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>@endforeach</select>
+            <select name="status" aria-label="Filter by status"><option value="">All statuses</option>@foreach (['borrowed' => 'Borrowed', 'overdue' => 'Overdue', 'returned' => 'Returned', 'voided' => 'Voided'] as $value => $label)<option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>@endforeach</select>
             <button type="submit">Filter</button>
         </form>
         <div class="table-wrap"><table>
             <thead><tr><th>Title / borrower</th><th>Issued</th><th>Due</th><th>Returned</th><th>Fine</th><th>Status</th><th>Action</th></tr></thead>
             <tbody>
             @forelse ($loans as $loan)
-                @php($status = $loan->returned_at ? 'Returned' : ($loan->isOverdue() ? 'Overdue' : 'Borrowed'))
+                @php($status = $loan->voided_at ? 'Voided' : ($loan->returned_at ? 'Returned' : ($loan->isOverdue() ? 'Overdue' : 'Borrowed')))
                 @php($fineLabel = (float) $loan->fine_amount > 0 ? '$' . number_format((float) $loan->fine_amount, 2) : '—')
                 <tr>
                     <td><strong>{{ $loan->book->title }}</strong><br>{{ $loan->borrower->name }}</td>
@@ -47,7 +47,7 @@
                     <td>{{ $loan->returned_at?->format('M j, Y') ?? '—' }}</td>
                     <td>@if ((float) $loan->fine_amount > 0) <span>{{ $fineLabel }}@if ($loan->fine_paid_at === null) <br><strong>Unpaid</strong>@else <br><strong>Paid</strong>@endif</span> @else <span>—</span> @endif</td>
                     <td class="status {{ strtolower($status) }}">{{ $status }}</td>
-                    <td>@if (! $loan->returned_at)<form class="inline" method="POST" action="{{ route('loans.return', $loan) }}">@csrf<button class="return" type="submit">Record return</button></form>@if ((float) $loan->fine_amount > 0 && $loan->fine_paid_at === null)<form class="inline" method="POST" action="{{ route('loans.fine.pay', $loan) }}">@csrf<button class="return" type="submit" style="background:#d4a017;">Mark fine paid</button></form>@endif@else<span class="muted">by {{ $loan->returner?->name ?? 'Former staff' }}</span>@endif</td>
+                    <td>@if (! $loan->returned_at && ! $loan->voided_at)<form class="inline" method="POST" action="{{ route('loans.return', $loan) }}">@csrf<button class="return" type="submit">Record return</button></form>@if ((float) $loan->fine_amount > 0 && $loan->fine_paid_at === null)<form class="inline" method="POST" action="{{ route('loans.fine.pay', $loan) }}">@csrf<button class="return" type="submit" style="background:#d4a017;">Mark fine paid</button></form>@endif@elseif ($loan->voided_at)<span class="muted">voided by {{ $loan->voider?->name ?? 'Former staff' }}</span>@else<span class="muted">by {{ $loan->returner?->name ?? 'Former staff' }}</span>@endif</td>
                 </tr>
             @empty
                 <tr><td colspan="7">No loan records match your filters.</td></tr>

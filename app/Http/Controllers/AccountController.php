@@ -45,6 +45,7 @@ class AccountController extends Controller
 
         if (filled($data['password'] ?? null)) {
             $user->password = Hash::make($data['password']);
+            $user->tokens()->delete();
             ApiToken::query()->where('user_id', $user->id)->delete();
         }
 

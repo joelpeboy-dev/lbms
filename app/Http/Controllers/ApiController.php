@@ -2,59 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ApiToken;
 use App\Models\Book;
+use App\Models\BookCategory;
 use App\Models\BookLoan;
+use App\Models\BookTransaction;
 use App\Models\LibraryAuditLog;
-use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ApiController extends Controller
 {
-    public function issueToken(Request $request): JsonResponse
-    {
-        $credentials = $request->validate([
-            'email' => ['required', 'email'],
-            'password' => ['required', 'string'],
-            'name' => ['nullable', 'string', 'max:100'],
-        ]);
-        $user = User::query()->where('email', $credentials['email'])->first();
-
-        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
-            return response()->json(['message' => 'The supplied credentials are invalid.'], 401);
-        }
-
-        $plainTextToken = Str::random(80);
-        $expiresAt = now()->addDays(30);
-        ApiToken::create([
-            'user_id' => $user->id,
-            'name' => $credentials['name'] ?? 'API access',
-            'token_hash' => hash('sha256', $plainTextToken),
-            'expires_at' => $expiresAt,
-        ]);
-
-        return response()->json([
-            'token_type' => 'Bearer',
-            'token' => $plainTextToken,
-            'expires_at' => $expiresAt->toIso8601String(),
-        ], 201);
-    }
-
-    public function revokeToken(Request $request): JsonResponse
-    {
-        $request->attributes->get('api_token')->delete();
-
-        return response()->json(['message' => 'The API token has been revoked.']);
-    }
-
     public function categories(): JsonResponse
     {
         return response()->json([
@@ -63,7 +26,70 @@ class ApiController extends Controller
                 ['id' => 'study', 'name' => 'Study'],
                 ['id' => 'manga', 'name' => 'Manga'],
             ],
+            'book_categories' => BookCategory::query()
+                ->orderBy('name')
+                ->get(['slug', 'name'])
+                ->map(fn (BookCategory $category): array => $this->categoryData($category)),
         ]);
+    }
+
+    public function showCategory(BookCategory $bookCategory): JsonResponse
+    {
+        return response()->json(['data' => $this->categoryData($bookCategory)]);
+    }
+
+    public function storeCategory(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100', Rule::unique('book_categories', 'name')],
+        ]);
+        $category = BookCategory::create([
+            'name' => $data['name'],
+            'slug' => (Str::slug($data['name']) ?: 'category').'-'.Str::lower(Str::random(6)),
+        ]);
+        LibraryAuditLog::record('book_category.created', $category, [
+            'name' => $category->name,
+            'source' => 'api',
+        ], $request->user());
+
+        return response()->json(['data' => $this->categoryData($category)], 201);
+    }
+
+    public function updateCategory(Request $request, BookCategory $bookCategory): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('book_categories', 'name')->ignore($bookCategory->id),
+            ],
+        ]);
+
+        $bookCategory->update($data);
+        LibraryAuditLog::record('book_category.updated', $bookCategory, [
+            'changed_fields' => array_keys($bookCategory->getChanges()),
+            'source' => 'api',
+        ], $request->user());
+
+        return response()->json(['data' => $this->categoryData($bookCategory)]);
+    }
+
+    public function deleteCategory(Request $request, BookCategory $bookCategory): JsonResponse
+    {
+        if ($bookCategory->books()->exists()) {
+            return response()->json([
+                'message' => 'A category assigned to books cannot be deleted.',
+            ], 409);
+        }
+
+        LibraryAuditLog::record('book_category.deleted', $bookCategory, [
+            'name' => $bookCategory->name,
+            'source' => 'api',
+        ], $request->user());
+        $bookCategory->delete();
+
+        return response()->json(['message' => 'Book category deleted successfully.']);
     }
 
     public function books(Request $request): JsonResponse
@@ -71,10 +97,10 @@ class ApiController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'category' => ['nullable', Rule::in(['book', 'study', 'manga'])],
-            'genre' => ['nullable', Rule::in(array_keys(config('library.genres')))],
+            'genre' => ['nullable', Rule::exists('book_categories', 'slug')],
         ]);
         $books = Book::query()
-            ->withCount(['loans as active_loans_count' => fn (Builder $query) => $query->whereNull('returned_at')])
+            ->withCount(['loans as active_loans_count' => fn (Builder $query) => $query->whereNull('returned_at')->whereNull('voided_at')])
             ->when($filters['search'] ?? null, fn (Builder $query, string $search) => $query->where(fn (Builder $query) => $query
                 ->where('title', 'like', "%{$search}%")
                 ->orWhere('author', 'like', "%{$search}%")
@@ -91,7 +117,7 @@ class ApiController extends Controller
 
     public function book(Book $book): JsonResponse
     {
-        $book->loadCount(['loans as active_loans_count' => fn (Builder $query) => $query->whereNull('returned_at')]);
+        $book->loadCount(['loans as active_loans_count' => fn (Builder $query) => $query->whereNull('returned_at')->whereNull('voided_at')]);
 
         return response()->json(['data' => $this->bookData($book)]);
     }
@@ -118,7 +144,7 @@ class ApiController extends Controller
 
         $book = DB::transaction(function () use ($book, $data, $request): Book {
             $book = Book::query()->lockForUpdate()->findOrFail($book->id);
-            $activeLoans = $book->loans()->whereNull('returned_at')->count();
+            $activeLoans = $book->loans()->whereNull('returned_at')->whereNull('voided_at')->count();
             $totalCopies = $data['total_copies'] ?? $book->total_copies;
 
             if ($totalCopies < $activeLoans) {
@@ -134,7 +160,7 @@ class ApiController extends Controller
             ], $request->user());
 
             return $book->loadCount([
-                'loans as active_loans_count' => fn (Builder $query) => $query->whereNull('returned_at'),
+                'loans as active_loans_count' => fn (Builder $query) => $query->whereNull('returned_at')->whereNull('voided_at'),
             ]);
         });
 
@@ -172,13 +198,283 @@ class ApiController extends Controller
     {
         $user = $request->user();
         $loans = BookLoan::query()
-            ->with(['book:id,title,slug', 'borrower:id,name', 'issuer:id,name', 'returner:id,name'])
-            ->when($user->role === 'student', fn (Builder $query) => $query->where('borrower_id', $user->id))
+            ->with(['book:id,title,slug', 'borrower:id,name', 'issuer:id,name', 'returner:id,name', 'voider:id,name'])
+            ->when(! $this->isAdminUser($user) && $user->role === 'student', fn (Builder $query) => $query->where('borrower_id', $user->id))
             ->latest('borrowed_at')
             ->paginate(20)
             ->through(fn (BookLoan $loan) => $this->loanData($loan));
 
         return response()->json($loans);
+    }
+
+    public function showLoan(Request $request, BookLoan $loan): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user->role === 'student' && $loan->borrower_id !== $user->id, 404);
+
+        return response()->json([
+            'data' => $this->loanData($loan->load(['book:id,title,slug', 'borrower:id,name', 'issuer:id,name', 'returner:id,name', 'voider:id,name'])),
+        ]);
+    }
+
+    public function updateLoan(Request $request, BookLoan $loan): JsonResponse
+    {
+        $partial = $request->isMethod('PATCH');
+        $required = $partial ? 'sometimes' : 'required';
+        $data = $request->validate([
+            'borrower_id' => [$required, 'integer', 'exists:users,id'],
+            'due_at' => [$required, 'date', 'after_or_equal:today'],
+        ]);
+
+        if ($loan->returned_at !== null || $loan->voided_at !== null) {
+            throw ValidationException::withMessages([
+                'loan' => 'Cannot update a completed or voided loan.',
+            ]);
+        }
+
+        $loan = DB::transaction(function () use ($loan, $data, $request): BookLoan {
+            $loan = BookLoan::query()->lockForUpdate()->findOrFail($loan->id);
+            $update = [];
+
+            if (isset($data['borrower_id'])) {
+                $update['borrower_id'] = $data['borrower_id'];
+            }
+            if (isset($data['due_at'])) {
+                $update['due_at'] = Carbon::parse($data['due_at'])->endOfDay();
+            }
+
+            $loan->update($update);
+            if (isset($data['borrower_id'])) {
+                BookTransaction::query()
+                    ->where('book_loan_id', $loan->id)
+                    ->update(['borrower_id' => $data['borrower_id']]);
+            }
+
+            LibraryAuditLog::record('loan.updated', $loan, [
+                'changed_fields' => array_keys($loan->getChanges()),
+                'source' => 'api',
+            ], $request->user());
+
+            return $loan;
+        });
+
+        return response()->json([
+            'message' => 'Loan updated successfully.',
+            'data' => $this->loanData($loan->fresh(['book:id,title,slug', 'borrower:id,name', 'issuer:id,name', 'returner:id,name', 'voider:id,name'])),
+        ]);
+    }
+
+    public function deleteLoan(Request $request, BookLoan $loan): JsonResponse
+    {
+        $deleted = DB::transaction(function () use ($loan, $request): bool {
+            $loan = BookLoan::query()->lockForUpdate()->findOrFail($loan->id);
+
+            if ($loan->returned_at !== null || $loan->voided_at !== null) {
+                return false;
+            }
+            if ($loan->transaction()->exists()) {
+                $loan->transaction()->delete();
+            }
+
+            LibraryAuditLog::record('loan.deleted', $loan, [
+                'source' => 'api',
+            ], $request->user());
+            $loan->delete();
+
+            return true;
+        });
+
+        if (! $deleted) {
+            return response()->json([
+                'message' => 'Only active loans can be deleted.',
+            ], 409);
+        }
+
+        return response()->json(['message' => 'Loan deleted successfully.']);
+    }
+
+    public function transactions(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $filters = $request->validate([
+            'id' => ['nullable', 'integer'],
+        ]);
+
+        if (isset($filters['id'])) {
+            $transaction = BookTransaction::query()
+                ->with(['book:id,title,slug', 'borrower:id,name', 'performer:id,name'])
+                ->findOrFail($filters['id']);
+
+            abort_if(
+                $user->role === 'student' && $transaction->borrower_id !== $user->id,
+                404,
+            );
+
+            return response()->json([
+                'data' => $this->transactionData($transaction),
+            ]);
+        }
+
+        $transactions = BookTransaction::query()
+            ->with(['book:id,title,slug', 'borrower:id,name', 'performer:id,name'])
+            ->when(
+                ! $this->isAdminUser($user) && $user->role === 'student',
+                fn (Builder $query) => $query->where('borrower_id', $user->id),
+            )
+            ->latest('transaction_at')
+            ->latest('id')
+            ->paginate(20)
+            ->through(fn (BookTransaction $transaction): array => $this->transactionData($transaction));
+
+        return response()->json($transactions);
+    }
+
+    public function transactionDetail(int $id): JsonResponse
+    {
+        $user = request()->user();
+
+        $transaction = BookTransaction::query()
+            ->with(['book:id,title,slug', 'borrower:id,name', 'performer:id,name'])
+            ->findOrFail($id);
+
+        abort_if(
+            $user->role === 'student' && $transaction->borrower_id !== $user->id,
+            404,
+        );
+
+        return response()->json([
+            'data' => $this->transactionData($transaction),
+        ]);
+    }
+
+    public function createTransaction(Request $request): JsonResponse
+    {
+        $loanResponse = $this->createLoan($request);
+        $loanId = $loanResponse->getData(true)['data']['id'];
+        $transaction = BookTransaction::query()
+            ->with(['book:id,title,slug', 'borrower:id,name', 'performer:id,name'])
+            ->where('book_loan_id', $loanId)
+            ->where('transaction_type', 'borrowed')
+            ->firstOrFail();
+
+        return response()->json(['data' => $this->transactionData($transaction)], 201);
+    }
+
+    public function updateTransaction(Request $request, ?int $id = null): JsonResponse
+    {
+        $id ??= $request->validate([
+            'id' => ['required', 'integer'],
+        ])['id'];
+        $transaction = BookTransaction::query()->findOrFail($id);
+
+        abort_unless($transaction->transaction_type === 'borrowed', 409, 'Only an active borrowing transaction can be updated.');
+
+        $data = $request->validate([
+            'due_at' => ['sometimes', 'required', 'date', 'after_or_equal:today'],
+            'borrower_id' => ['sometimes', 'required', 'integer', 'exists:users,id'],
+        ]);
+
+        DB::transaction(function () use ($transaction, $data, $request): void {
+            $loan = BookLoan::query()->lockForUpdate()->findOrFail($transaction->book_loan_id);
+
+            if ($loan->returned_at !== null || $loan->voided_at !== null) {
+                throw ValidationException::withMessages(['transaction' => 'Cannot update a completed or voided transaction loan.']);
+            }
+
+            $loanUpdateData = [];
+            if (isset($data['due_at'])) {
+                $loanUpdateData['due_at'] = Carbon::parse($data['due_at'])->endOfDay();
+            }
+            if (isset($data['borrower_id'])) {
+                $loanUpdateData['borrower_id'] = $data['borrower_id'];
+                $transaction->borrower_id = $data['borrower_id'];
+            }
+
+            if (! empty($loanUpdateData)) {
+                $loan->update($loanUpdateData);
+            }
+
+            $transaction->save();
+
+            LibraryAuditLog::record('loan.updated', $loan, [
+                'transaction_id' => $transaction->id,
+                'source' => 'api',
+            ], $request->user());
+        });
+
+        $updatedTransaction = $transaction->fresh(['book:id,title,slug', 'borrower:id,name', 'performer:id,name']);
+
+        return response()->json([
+            'message' => 'Transaction updated successfully.',
+            'data' => $this->transactionData($updatedTransaction),
+        ]);
+    }
+
+    public function returnTransaction(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'id' => ['required', 'integer'],
+        ]);
+        $transaction = BookTransaction::query()->findOrFail($data['id']);
+
+        abort_unless($transaction->transaction_type === 'borrowed', 409, 'Only a borrowing transaction can be returned.');
+
+        $this->returnLoan($request, $transaction->loan);
+        $returnedTransaction = $transaction->loan->transaction()
+            ->with(['book:id,title,slug', 'borrower:id,name', 'performer:id,name'])
+            ->firstOrFail();
+
+        return response()->json([
+            'message' => 'Book return recorded.',
+            'data' => $this->transactionData($returnedTransaction),
+        ]);
+    }
+
+    public function voidTransaction(Request $request, ?int $id = null): JsonResponse
+    {
+        $transactionId = $id ?? $request->input('id');
+
+        if (! $transactionId) {
+            return response()->json([
+                'message' => 'The id field is required.',
+                'errors' => ['id' => ['The id field is required.']],
+            ], 422);
+        }
+
+        $transaction = BookTransaction::query()->findOrFail($transactionId);
+
+        abort_unless($transaction->transaction_type === 'borrowed', 409, 'Only an active borrowing transaction can be voided.');
+
+        DB::transaction(function () use ($request, $transaction): void {
+            $borrowTransaction = BookTransaction::query()
+                ->lockForUpdate()
+                ->findOrFail($transaction->id);
+
+            if ($borrowTransaction->transaction_type !== 'borrowed') {
+                abort(409, 'Only an active borrowing transaction can be voided.');
+            }
+
+            $loan = BookLoan::query()->lockForUpdate()->findOrFail($borrowTransaction->book_loan_id);
+
+            if ($loan->returned_at !== null || $loan->voided_at !== null) {
+                abort(409, 'Only an active borrowing transaction can be voided.');
+            }
+
+            $loan->update([
+                'voided_at' => now(),
+                'voided_by' => $request->user()->id,
+            ]);
+            LibraryAuditLog::record('loan.voided', $loan, [
+                'borrow_transaction_id' => $borrowTransaction->id,
+                'source' => 'internal_api',
+            ], $request->user());
+
+            $borrowTransaction->delete();
+        });
+
+        return response()->json([
+            'message' => 'Borrowing transaction voided and removed.',
+        ]);
     }
 
     public function createLoan(Request $request): JsonResponse
@@ -199,7 +495,7 @@ class ApiController extends Controller
         $loan = DB::transaction(function () use ($data, $borrowerId, $user): BookLoan {
             $book = Book::query()->lockForUpdate()->findOrFail($data['book_id']);
 
-            if ($book->condition_status !== 'available' || $book->loans()->whereNull('returned_at')->count() >= $book->total_copies) {
+            if ($book->condition_status !== 'available' || $book->loans()->whereNull('returned_at')->whereNull('voided_at')->count() >= $book->total_copies) {
                 throw ValidationException::withMessages(['book_id' => 'There are no available copies of this title.']);
             }
 
@@ -215,12 +511,21 @@ class ApiController extends Controller
                 'borrower_id' => $borrowerId,
                 'source' => 'api',
             ], $user);
+            BookTransaction::create([
+                'book_loan_id' => $loan->id,
+                'book_id' => $book->id,
+                'borrower_id' => $borrowerId,
+                'performed_by' => $user->id,
+                'transaction_type' => 'borrowed',
+                'transaction_at' => $loan->borrowed_at,
+                'details' => ['source' => 'api'],
+            ]);
 
             return $loan;
         });
 
         return response()->json([
-            'data' => $this->loanData($loan->load(['book:id,title,slug', 'borrower:id,name', 'issuer:id,name'])),
+            'data' => $this->loanData($loan->load(['book:id,title,slug', 'borrower:id,name', 'issuer:id,name', 'voider:id,name'])),
         ], 201);
     }
 
@@ -229,7 +534,7 @@ class ApiController extends Controller
         DB::transaction(function () use ($request, $loan): void {
             $loan = BookLoan::query()->lockForUpdate()->findOrFail($loan->id);
 
-            if ($loan->returned_at !== null) {
+            if ($loan->returned_at !== null || $loan->voided_at !== null) {
                 throw ValidationException::withMessages(['loan' => 'This book has already been returned.']);
             }
 
@@ -239,6 +544,18 @@ class ApiController extends Controller
                 'fine_amount' => $loan->overdueFineAmount(now()),
             ]);
             LibraryAuditLog::record('loan.returned', $loan, ['source' => 'api'], $request->user());
+            BookTransaction::query()->updateOrCreate(
+                ['book_loan_id' => $loan->id],
+                [
+                    'book_id' => $loan->book_id,
+                    'borrower_id' => $loan->borrower_id,
+                    'performed_by' => $request->user()->id,
+                    'transaction_type' => 'returned',
+                    'transaction_at' => $loan->returned_at,
+                    'fine_amount' => $loan->fine_amount,
+                    'details' => ['source' => 'api'],
+                ],
+            );
         });
 
         return response()->json(['message' => 'Book return recorded.']);
@@ -247,15 +564,15 @@ class ApiController extends Controller
     public function report(): JsonResponse
     {
         $availableCopies = (int) Book::query()->where('condition_status', 'available')->sum('total_copies');
-        $activeLoans = BookLoan::query()->whereNull('returned_at')->count();
+        $activeLoans = BookLoan::query()->whereNull('returned_at')->whereNull('voided_at')->count();
 
         return response()->json([
             'data' => [
                 'titles' => Book::query()->count(),
                 'total_copies' => (int) Book::query()->sum('total_copies'),
-                'available_copies' => max(0, $availableCopies - BookLoan::query()->whereNull('returned_at')->whereHas('book', fn ($query) => $query->where('condition_status', 'available'))->count()),
+                'available_copies' => max(0, $availableCopies - BookLoan::query()->whereNull('returned_at')->whereNull('voided_at')->whereHas('book', fn ($query) => $query->where('condition_status', 'available'))->count()),
                 'active_loans' => $activeLoans,
-                'overdue_loans' => BookLoan::query()->whereNull('returned_at')->where('due_at', '<', now())->count(),
+                'overdue_loans' => BookLoan::query()->whereNull('returned_at')->whereNull('voided_at')->where('due_at', '<', now())->count(),
             ],
         ]);
     }
@@ -272,8 +589,8 @@ class ApiController extends Controller
 
         return [
             'category' => [$required, Rule::in(['book', 'study', 'manga'])],
-            'genre' => [...$optional, Rule::in(array_keys(config('library.genres')))],
-            'title' => [$required, 'string', 'max:255'],
+            'genre' => [...$optional, Rule::exists('book_categories', 'slug')],
+            'title' => [$required,   'string', 'max:255'],
             'author' => [$required, 'string', 'max:255'],
             'description' => [$required, 'string'],
             'cover_url' => [...$optional, 'url', 'max:2048'],
@@ -310,6 +627,17 @@ class ApiController extends Controller
         ];
     }
 
+    /**
+     * @return array{id: string, name: string}
+     */
+    private function categoryData(BookCategory $category): array
+    {
+        return [
+            'id' => $category->slug,
+            'name' => $category->name,
+        ];
+    }
+
     private function loanData(BookLoan $loan): array
     {
         return [
@@ -321,9 +649,33 @@ class ApiController extends Controller
             'borrowed_at' => $loan->borrowed_at->toIso8601String(),
             'due_at' => $loan->due_at->toIso8601String(),
             'returned_at' => $loan->returned_at?->toIso8601String(),
+            'voided_at' => $loan->voided_at?->toIso8601String(),
+            'voided_by' => $loan->voider?->name,
             'fine_amount' => (float) $loan->fine_amount,
             'fine_paid_at' => $loan->fine_paid_at?->toIso8601String(),
-            'status' => $loan->returned_at ? 'returned' : ($loan->isOverdue() ? 'overdue' : 'borrowed'),
+            'status' => $loan->voided_at ? 'voided' : ($loan->returned_at ? 'returned' : ($loan->isOverdue() ? 'overdue' : 'borrowed')),
+        ];
+    }
+
+    private function transactionData(BookTransaction $transaction): array
+    {
+        return [
+            'id' => $transaction->id,
+            'loan_id' => $transaction->book_loan_id,
+            'type' => $transaction->transaction_type,
+            'book' => [
+                'id' => $transaction->book->id,
+                'title' => $transaction->book->title,
+                'slug' => $transaction->book->slug,
+            ],
+            'borrower' => [
+                'id' => $transaction->borrower->id,
+                'name' => $transaction->borrower->name,
+            ],
+            'performed_by' => $transaction->performer?->name,
+            'transaction_at' => $transaction->transaction_at->toIso8601String(),
+            'fine_amount' => (float) $transaction->fine_amount,
+            'details' => $transaction->details,
         ];
     }
 }

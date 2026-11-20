@@ -40,6 +40,10 @@
 		button { width: 100%; margin-top: 14px; padding: 11px; border: 0; border-radius: 3px; background: var(--blue); color: white; font: 800 12px inherit; cursor: pointer; transition: background .2s, transform .2s, box-shadow .3s; }
 		button:hover { transform: translateY(-2px); background: #0d54cb; box-shadow: 0 0 20px #1469f580, 0 0 40px #1469f540; }
 		button:active { transform: translateY(0); }
+		.google-login { display: block; width: 85%; max-width: 260px; margin: 12px auto 0; padding: 9px 11px; border: 0; border-radius: 3px; background: var(--blue); color: white !important; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; text-align: center; text-decoration: none; transition: background .2s, box-shadow .3s; }
+		.google-login:hover { display: block; background: #0d54cb; box-shadow: 0 0 20px #1469f580, 0 0 40px #1469f540; text-shadow: none; transform: none; }
+		.google-login:focus { outline: 2px solid #1469f5; outline-offset: 3px; box-shadow: 0 0 20px #1469f580, 0 0 40px #1469f540; }
+		.google-login:active { background: #0d54cb; box-shadow: 0 0 20px #1469f580, 0 0 40px #1469f540; transform: none; }
 		.error { margin: 0 0 10px; padding: 8px 10px; border-left: 3px solid #e23d4f; background: #fff0f2; color: #a22132; font-size: 11px; }
 		a { color: var(--blue); font-weight: 800; transition: all .3s ease; }
 		a:hover { text-shadow: 0 0 10px #1469f580; transform: translateX(2px); display: inline-block; }
@@ -82,7 +86,7 @@
 	</div>
 	<main>
 		<section class="brand-panel">
-			<img class="login-art" src="<?php echo e(asset('images/library-login-art.svg')); ?>" alt="An open book glowing in a library, with bookshelves, a starry window, and a shooting star.">
+			<img class="login-art" src="<?php echo e(asset('images/people-reading.svg')); ?>" alt="Two people reading books together in a library.">
 			<h2><span>LIBRARY BOOK</span><br><span>MONITORING</span> <span>SYSTEM</span></h2>
 		</section>
 		<section class="login-panel">
@@ -91,12 +95,12 @@
 		<h1>Login to your account</h1>
 		<p class="intro">Enter your account details to continue.</p>
 
-		<?php if ($errors->any()): ?>
+		<?php if ($errors->any()) { ?>
 			<div class="error"><?php echo e($errors->first()); ?></div>
-		<?php endif; ?>
-		<?php if (session('status')): ?>
+		<?php } ?>
+		<?php if (session('status')) { ?>
 			<div class="status" role="status"><?php echo e(session('status')); ?></div>
-		<?php endif; ?>
+		<?php } ?>
 
 		<form method="POST" action="<?php echo e(route('login.store')); ?>">
 			<?php echo csrf_field(); ?>
@@ -113,6 +117,7 @@
 
 			<button type="submit">Log in</button>
 		</form>
+		<a class="google-login" href="<?php echo e(route('google.redirect')); ?>">Login with Google</a>
 		<p class="intro" style="margin: 16px 0 0; text-align: center;">New student? <a href="<?php echo e(route('register')); ?>">Create an account</a></p>
 		<p class="footer">&copy; 2026 Library Book Monitoring System</p>
 		</section>

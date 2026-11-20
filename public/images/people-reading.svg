@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 340" role="img" aria-labelledby="title description">
+  <title id="title">A cozy evening of reading</title>
+  <desc id="description">Two friends read together in a warmly lit library beneath a glowing book symbol, as a shooting star passes the window.</desc>
+  <defs>
+    <linearGradient id="room" x2="0" y2="1">
+      <stop stop-color="#345b86"/>
+      <stop offset=".52" stop-color="#203e68"/>
+      <stop offset="1" stop-color="#111d3b"/>
+    </linearGradient>
+    <radialGradient id="warm-light">
+      <stop stop-color="#ffd878" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#ffd878" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="book-page" x2="0" y2="1">
+      <stop stop-color="#fff8df"/>
+      <stop offset="1" stop-color="#e9c98b"/>
+    </linearGradient>
+    <linearGradient id="left-shirt" x2="0" y2="1">
+      <stop stop-color="#61b4c4"/>
+      <stop offset="1" stop-color="#36768f"/>
+    </linearGradient>
+    <linearGradient id="right-shirt" x2="0" y2="1">
+      <stop stop-color="#df8268"/>
+      <stop offset="1" stop-color="#a64d54"/>
+    </linearGradient>
+    <linearGradient id="table" x2="0" y2="1">
+      <stop stop-color="#bd8557"/>
+      <stop offset="1" stop-color="#704333"/>
+    </linearGradient>
+    <filter id="soft-glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+  </defs>
+  <style>
+    .reader {
+      transform-box: fill-box;
+      transform-origin: center bottom;
+      animation: reading-bob 3.2s ease-in-out infinite;
+    }
+    .reader-right { animation-delay: -1.6s; }
+    .shooting-star {
+      opacity: 0;
+      animation: star-crossing 7s ease-in-out infinite;
+    }
+    @keyframes reading-bob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
+    @keyframes star-crossing {
+      0%, 68%, 100% { opacity: 0; transform: translate(-26px, -20px); }
+      70% { opacity: 1; }
+      83% { opacity: 1; transform: translate(0, 0); }
+      88% { opacity: 0; transform: translate(5px, 4px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .reader, .shooting-star { animation: none; }
+      .shooting-star { opacity: .85; }
+    }
+  </style>
+  <rect width="540" height="340" rx="20" fill="url(#room)"/>
+  <ellipse cx="270" cy="79" rx="103" ry="77" fill="url(#warm-light)" opacity=".48"/>
+  <ellipse cx="270" cy="236" rx="204" ry="95" fill="url(#warm-light)" opacity=".2"/>
+  <path d="M18 220h504" stroke="#9ebce0" stroke-opacity=".12" stroke-width="2"/>
+  <circle cx="107" cy="103" r="67" fill="#f8d99a" opacity=".12"/>
+  <rect x="30" y="34" width="150" height="166" rx="13" fill="#132644" stroke="#a5c8ee" stroke-opacity=".72" stroke-width="4"/>
+  <rect x="38" y="42" width="134" height="150" rx="7" fill="#1a3151" stroke="#8eb2dc" stroke-opacity=".28" stroke-width="2"/>
+  <path d="M105 42v150M39 116h132" stroke="#8eb2dc" stroke-opacity=".5" stroke-width="4"/>
+  <circle cx="72" cy="77" r="30" fill="url(#warm-light)" opacity=".5"/>
+  <circle cx="69" cy="76" r="4" fill="#fff1bd"/>
+  <circle cx="144" cy="91" r="3" fill="#fff1bd"/>
+  <circle cx="63" cy="154" r="3" fill="#fff1bd"/>
+  <circle cx="133" cy="61" r="2" fill="#fff1bd" opacity=".8"/>
+  <path d="m85 137 2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#d5e8ff" opacity=".9"/>
+  <g class="shooting-star" aria-label="A shooting star crossing the window">
+    <path d="M118 52 150 80" fill="none" stroke="#ffe8a6" stroke-linecap="round" stroke-width="3" opacity=".8"/>
+    <path d="m153 75 2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#fff5c9"/>
+  </g>
+  <g aria-label="Knowledge and ideas">
+    <circle cx="270" cy="44" r="39" fill="#ffd878" opacity=".3" filter="url(#soft-glow)"/>
+    <path d="M270 11v9m-28 6 7 6m49-6-7 6m-34-17 4 7m30-7-4 7" fill="none" stroke="#ffe7a0" stroke-linecap="round" stroke-width="3"/>
+    <path d="M270 19c-13 0-22 9-22 21 0 8 4 14 10 18 3 2 4 5 4 8h16c0-3 1-6 4-8 6-4 10-10 10-18 0-12-9-21-22-21z" fill="#ffd878" stroke="#fff0b0" stroke-width="3"/>
+    <path d="M259 64h22m-19 6h16" stroke="#e7b956" stroke-linecap="round" stroke-width="4"/>
+    <path d="M270 39q-7-5-13-2v12q7-3 13 3 6-6 13-3V37q-6-3-13 2z" fill="#fff8df" stroke="#8b633c" stroke-linejoin="round" stroke-width="2"/>
+    <path d="M270 40v12" stroke="#bd986a" stroke-width="2"/>
+  </g>
+  <rect x="360" y="55" width="153" height="166" rx="7" fill="#142845" stroke="#7194be" stroke-opacity=".7" stroke-width="3"/>
+  <path d="M365 111h143m-143 53h143M365 216h143" stroke="#bd8a5b" stroke-width="8"/>
+  <g stroke="#14233e" stroke-width="2">
+    <path d="M378 70h20v38h-20z" fill="#e4866c"/>
+    <path d="M402 77h25v31h-25z" fill="#78b9ad"/>
+    <path d="M432 67h22v41h-22z" fill="#e4c36f"/>
+    <path d="M459 75h38v33h-38z" fill="#a28fd0"/>
+    <path d="M378 122h28v39h-28z" fill="#70a9d4"/>
+    <path d="M411 127h22v34h-22z" fill="#dd896d"/>
+    <path d="M438 119h30v42h-30z" fill="#76b09a"/>
+    <path d="M473 125h25v36h-25z" fill="#dbbd77"/>
+  </g>
+  <g fill="none" stroke="#fff0c2" stroke-linecap="round" stroke-opacity=".48" stroke-width="1.5">
+    <path d="M383 76v26m25 5V82m30-11v33m27-25v26m-82 23v26m37-28v25m35-30v27m23-20v20"/>
+  </g>
+  <path d="M374 178h125" stroke="#7194be" stroke-opacity=".34" stroke-width="2"/>
+  <g class="reader reader-left">
+    <path d="M156 248c0-48 14-78 50-84 34-6 60 21 62 84z" fill="url(#left-shirt)"/>
+    <path d="M170 120c0-25 17-43 40-43 24 0 40 19 40 43v15c0 23-17 40-40 40-22 0-40-18-40-40z" fill="#d99670"/>
+    <path d="M169 126c-9-42 15-66 44-66 28 0 43 20 39 51-9-1-17-8-21-17-14 13-35 19-62 17z" fill="#342b3d"/>
+    <path d="M176 122q10 7 18 3m32 0q9 4 19-3" fill="none" stroke="#503747" stroke-linecap="round" stroke-width="3"/>
+    <circle cx="187" cy="135" r="2" fill="#332d3b"/>
+    <circle cx="227" cy="135" r="2" fill="#332d3b"/>
+    <path d="M194 154q14 10 28 0" fill="none" stroke="#a94f54" stroke-linecap="round" stroke-width="3"/>
+    <path d="M200 183q9 11 18 0" fill="none" stroke="#b6e6e7" stroke-linecap="round" stroke-width="3"/>
+  </g>
+  <g class="reader reader-right">
+    <path d="M268 248c0-49 18-78 52-84 32-5 57 20 59 84z" fill="url(#right-shirt)"/>
+    <path d="M284 119c0-25 17-43 40-43 24 0 40 19 40 43v15c0 23-17 40-40 40-22 0-40-18-40-40z" fill="#efbd8c"/>
+    <path d="M282 126c-6-36 13-65 44-65 25 0 43 19 40 51-12 0-23-7-30-18-12 15-29 24-54 25z" fill="#30283a"/>
+    <path d="M291 122q9 8 18 3m31 0q10 5 18-3" fill="none" stroke="#59404a" stroke-linecap="round" stroke-width="3"/>
+    <circle cx="302" cy="135" r="2" fill="#372d3b"/>
+    <circle cx="342" cy="135" r="2" fill="#372d3b"/>
+    <path d="M308 154q14 10 28 0" fill="none" stroke="#b25b5b" stroke-linecap="round" stroke-width="3"/>
+    <path d="M314 183q9 11 18 0" fill="none" stroke="#f7d3a5" stroke-linecap="round" stroke-width="3"/>
+  </g>
+  <path d="M182 196q23 21 47 30m127-30q-21 22-44 31" fill="none" stroke="#d99670" stroke-linecap="round" stroke-width="14"/>
+  <path d="M292 196q-22 20-45 30m-62-30q22 21 45 30" fill="none" stroke="#efbd8c" stroke-linecap="round" stroke-width="14"/>
+  <ellipse cx="270" cy="260" rx="220" ry="26" fill="#0b162c" opacity=".32"/>
+  <path d="M38 250q110-21 232 4 111-22 232-4l-15 62H53z" fill="url(#table)"/>
+  <path d="M50 255q105-17 220 3 112-20 220-3" fill="none" stroke="#edbd7e" stroke-opacity=".58" stroke-width="2"/>
+  <path d="M57 250q109-19 211 9v56q-101-26-198-12z" fill="#71374a" stroke="#e7c17e" stroke-width="3"/>
+  <path d="M483 250q-109-19-215 9v56q103-26 202-12z" fill="#315b8d" stroke="#e7c17e" stroke-width="3"/>
+  <path d="M68 254q95-16 191 9v43q-95-22-184-10z" fill="url(#book-page)"/>
+  <path d="M472 254q-96-16-195 9v43q97-22 188-10z" fill="url(#book-page)"/>
+  <path d="M270 263v46" stroke="#9b714c" stroke-width="4"/>
+  <path d="M264 265v42m12-42v42" stroke="#fff8df" stroke-opacity=".35" stroke-width="1"/>
+  <g fill="none" stroke="#bd986a" stroke-linecap="round" stroke-width="2">
+    <path d="M83 266q66-10 139 8m-142 5q65-9 140 9m-142 5q64-8 140 9"/>
+    <path d="M321 274q71-18 138-8m-139 22q73-18 140-9m-141 23q74-17 142-8"/>
+  </g>
+  <rect x="1.5" y="1.5" width="537" height="337" rx="19" fill="none" stroke="#9fc3ff" stroke-opacity=".42" stroke-width="3"/>
+</svg>

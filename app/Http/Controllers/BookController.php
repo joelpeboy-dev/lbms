@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Book;
+use App\Models\BookCategory;
 use App\Models\LibraryAuditLog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -18,12 +20,12 @@ class BookController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'category' => ['nullable', 'in:book,study,manga'],
-            'genre' => ['nullable', Rule::in(array_keys(config('library.genres')))],
+            'genre' => ['nullable', Rule::exists('book_categories', 'slug')],
         ]);
 
         return view('books.index', [
             'books' => Book::query()
-                ->withCount(['loans as active_loans_count' => fn (Builder $query) => $query->whereNull('returned_at')])
+                ->withCount(['loans as active_loans_count' => fn (Builder $query) => $query->whereNull('returned_at')->whereNull('voided_at')])
                 ->when($filters['search'] ?? null, function (Builder $query, string $search): void {
                     $query->where(function (Builder $query) use ($search): void {
                         $query->where('title', 'like', "%{$search}%")
@@ -38,12 +40,15 @@ class BookController extends Controller
                 ->paginate(20)
                 ->withQueryString(),
             'filters' => $filters,
+            'genres' => BookCategory::query()->orderBy('name')->pluck('name', 'slug')->all(),
         ]);
     }
 
     public function create(): View
     {
-        return view('books.create');
+        return view('books.create', [
+            'genres' => BookCategory::query()->orderBy('name')->pluck('name', 'slug')->all(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -59,37 +64,48 @@ class BookController extends Controller
 
     public function edit(Book $book): View
     {
-        return view('books.edit', ['book' => $book]);
+        return view('books.edit', [
+            'book' => $book,
+            'genres' => BookCategory::query()->orderBy('name')->pluck('name', 'slug')->all(),
+        ]);
     }
 
     public function update(Request $request, Book $book): RedirectResponse
     {
         $data = $this->validatedBook($request, $book);
-        $activeLoans = $book->loans()->whereNull('returned_at')->count();
 
-        if ($data['total_copies'] < $activeLoans) {
-            throw ValidationException::withMessages([
-                'total_copies' => "This title already has {$activeLoans} copies on loan.",
-            ]);
-        }
+        DB::transaction(function () use ($book, $data): void {
+            $book = Book::query()->lockForUpdate()->findOrFail($book->id);
+            $activeLoans = $book->loans()->whereNull('returned_at')->whereNull('voided_at')->count();
 
-        $data['illustrations'] = $this->illustrations($data['illustrations'] ?? '');
-        $book->update($data);
-        LibraryAuditLog::record('book.updated', $book, ['changed_fields' => array_keys($book->getChanges())]);
+            if ($data['total_copies'] < $activeLoans) {
+                throw ValidationException::withMessages([
+                    'total_copies' => "This title already has {$activeLoans} copies on loan.",
+                ]);
+            }
+
+            $data['illustrations'] = $this->illustrations($data['illustrations'] ?? '');
+            $book->update($data);
+            LibraryAuditLog::record('book.updated', $book, ['changed_fields' => array_keys($book->getChanges())]);
+        });
 
         return redirect()->route('books.index')->with('success', 'Book updated successfully.');
     }
 
     public function destroy(Book $book): RedirectResponse
     {
-        if ($book->loans()->exists()) {
-            throw ValidationException::withMessages([
-                'book' => 'A title with borrowing history cannot be deleted.',
-            ]);
-        }
+        DB::transaction(function () use ($book): void {
+            $book = Book::query()->lockForUpdate()->findOrFail($book->id);
 
-        LibraryAuditLog::record('book.deleted', $book, ['title' => $book->title]);
-        $book->delete();
+            if ($book->loans()->exists() || $book->reservations()->exists()) {
+                throw ValidationException::withMessages([
+                    'book' => 'A title with borrowing or reservation history cannot be deleted.',
+                ]);
+            }
+
+            LibraryAuditLog::record('book.deleted', $book, ['title' => $book->title]);
+            $book->delete();
+        });
 
         return redirect()->route('books.index')->with('success', 'Book deleted successfully.');
     }
@@ -104,7 +120,7 @@ class BookController extends Controller
 
         return $request->validate([
             'category' => ['required', 'in:book,study,manga'],
-            'genre' => ['nullable', Rule::in(array_keys(config('library.genres')))],
+            'genre' => ['nullable', Rule::exists('book_categories', 'slug')],
             'title' => ['required', 'string', 'max:255'],
             'author' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string'],

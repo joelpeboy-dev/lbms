@@ -50,10 +50,14 @@ class LoginBrandingController extends Controller
             return back()->withErrors(['login_image' => 'Choose an image or select the option to restore the default image.']);
         }
 
-        $setting = LoginPageSetting::query()->updateOrCreate(
-            ['id' => LoginPageSetting::SINGLETON_ID],
-            ['image_path' => $imagePath, 'updated_by' => $request->user()->id],
-        );
+        if ($setting === null) {
+            $setting = new LoginPageSetting;
+            $setting->id = LoginPageSetting::SINGLETON_ID;
+        }
+
+        $setting->image_path = $imagePath;
+        $setting->updated_by = $request->user()->id;
+        $setting->save();
 
         if ($oldPath !== null && $oldPath !== $imagePath && ! Storage::disk('public')->delete($oldPath)) {
             return redirect()->route('admin.login-branding')

@@ -65,6 +65,7 @@ class UserManagementController extends Controller
 
         if (filled($data['password'] ?? null)) {
             $data['password'] = Hash::make($data['password']);
+            $user->tokens()->delete();
             ApiToken::query()->where('user_id', $user->id)->delete();
         } else {
             unset($data['password']);
@@ -99,6 +100,7 @@ class UserManagementController extends Controller
             Storage::disk('public')->delete($user->profile_photo_path);
         }
         LibraryAuditLog::record('user.deleted', $user, ['role' => $user->role, 'name' => $user->name]);
+        $user->tokens()->delete();
         $user->delete();
 
         return redirect()->route('users.index')->with('success', 'User deleted successfully.');

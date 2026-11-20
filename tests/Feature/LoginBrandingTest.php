@@ -48,7 +48,9 @@ class LoginBrandingTest extends TestCase
         ])->assertRedirect(route('admin.login-branding'))
             ->assertSessionHas('success');
 
-        $firstPath = LoginPageSetting::query()->firstOrFail()->image_path;
+        $setting = LoginPageSetting::query()->firstOrFail();
+        $this->assertSame(LoginPageSetting::SINGLETON_ID, $setting->id);
+        $firstPath = $setting->image_path;
         Storage::disk('public')->assertExists($firstPath);
         $this->get(route('login'))->assertSee(Storage::disk('public')->url($firstPath));
 

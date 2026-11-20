@@ -35,6 +35,12 @@ return [
         ],
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI', env('APP_URL').'/auth/google/callback'),
+    ],
+
     'weather' => [
         'key' => env('WEATHER_API_KEY'),
         'provider' => env('WEATHER_PROVIDER', 'open-meteo'),
@@ -68,6 +74,11 @@ return [
         'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
         'endpoint' => env('OPENAI_CHAT_COMPLETIONS_URL', 'https://api.openai.com/v1/chat/completions'),
         'timeout' => env('OPENAI_TIMEOUT', 45),
+    ],
+
+    'internal_api' => [
+        'key' => env('INTERNAL_API_KEY'),
+        'user_email' => env('INTERNAL_API_USER_EMAIL'),
     ],
 
 ];
